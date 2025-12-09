@@ -183,10 +183,15 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   };
 
   const moveToNextStep = (nextStep: WorkflowStep) => {
-    // Stop camera when moving to steps that don't need it
+    // Check if any upcoming step (including this one) needs the camera
     const stepsNeedingCamera: WorkflowStep[] = ['video_call', 'document', 'face'];
-    if (!stepsNeedingCamera.includes(nextStep) && localStream) {
-      console.log(`[EKYCWorkflow] Stopping camera - moving to ${nextStep} which doesn't need it`);
+    const currentIndex = enabledSteps.indexOf(nextStep);
+    const remainingSteps = enabledSteps.slice(currentIndex);
+    const anyCameraStepRemaining = remainingSteps.some(step => stepsNeedingCamera.includes(step));
+    
+    // Only stop camera if no remaining steps need it (e.g., moving to completion/questionnaire after face)
+    if (!anyCameraStepRemaining && localStream) {
+      console.log(`[EKYCWorkflow] Stopping camera - no remaining steps need it`);
       stopVideoStream();
     }
     
@@ -204,8 +209,10 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       await kycApiService.submitConsent(state.sessionId, consent);
       const nextStep = getNextStep('consent');
       moveToNextStep(nextStep);
-      // Start video stream if moving to video_call step (when location is skipped)
-      if (nextStep === 'video_call') {
+      // Start video stream if moving to a camera-dependent step
+      const stepsNeedingCamera: WorkflowStep[] = ['video_call', 'document', 'face'];
+      if (stepsNeedingCamera.includes(nextStep) && !localStream) {
+        console.log(`[EKYCWorkflow] Starting camera for ${nextStep} step`);
         setTimeout(() => startVideoStream(), 100);
       }
     } catch (error) {
@@ -225,8 +232,10 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       await kycApiService.submitLocation(state.sessionId, location);
       const nextStep = getNextStep('location');
       moveToNextStep(nextStep);
-      // Start video stream if moving to video_call step
-      if (nextStep === 'video_call') {
+      // Restart video stream if moving to a camera-dependent step and stream is not active
+      const stepsNeedingCamera: WorkflowStep[] = ['video_call', 'document', 'face'];
+      if (stepsNeedingCamera.includes(nextStep) && !localStream) {
+        console.log(`[EKYCWorkflow] Restarting camera for ${nextStep} step`);
         setTimeout(() => startVideoStream(), 100);
       }
     } catch (error) {
