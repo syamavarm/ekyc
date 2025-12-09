@@ -175,6 +175,8 @@ export interface FaceVerificationData {
     documentFaceDetectionScore?: number;
     [key: string]: any;
   };
+  // Flag for lean responses (indicates binary data exists on server)
+  hasCapturedImage?: boolean;
 }
 
 export interface LivenessCheckData {
@@ -183,6 +185,8 @@ export interface LivenessCheckData {
   confidenceScore: number;
   completedAt: Date;
   videoFrames?: string[];
+  // For lean responses (indicates frame data exists on server)
+  frameCount?: number;
 }
 
 export interface LivenessCheck {

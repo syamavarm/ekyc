@@ -326,6 +326,8 @@ router.post('/document/upload', upload.single('document'), async (req: Request, 
 /**
  * POST /kyc/document/ocr
  * Run OCR on uploaded document
+ * All binary data (images, OCR raw response) is stored in the backend.
+ * Only essential extracted data and URLs are returned to frontend.
  */
 router.post('/document/ocr', async (req: Request, res: Response) => {
   try {
@@ -357,28 +359,44 @@ router.post('/document/ocr', async (req: Request, res: Response) => {
     }
     
     // Perform document analysis (OCR + Photo extraction)
+    // All data is stored in backend - photoBuffer, ocrResults with rawResponse, etc.
     const { ocrResults, photoBuffer, photoUrl, ocrResultsUrl } = await documentService.analyzeDocument(session.document);
     
     // Validate OCR results
     const validation = documentService.validateDocumentData(ocrResults);
     
-    // Update document with OCR results and photo
+    // Store FULL data in session (including buffers and raw response)
     const updatedDocument = {
       ...session.document,
-      ocrResults,
+      ocrResults, // Full OCR results stored in backend
       isValid: validation.isValid,
       validationErrors: validation.errors,
       confidenceScore: ocrResults.confidence,
-      extractedPhotoBuffer: photoBuffer || undefined, // Convert null to undefined
+      extractedPhotoBuffer: photoBuffer || undefined, // Binary data stored in backend
       extractedPhotoUrl: photoUrl || undefined,
       ocrResultsUrl: ocrResultsUrl || undefined,
     };
     
     sessionManager.updateDocument(sessionId, updatedDocument);
     
+    // Return LEAN OCR data to frontend (no rawResponse, no buffers)
+    // Only essential extracted fields are sent to frontend
+    const leanOcrResults = {
+      documentType: ocrResults.documentType,
+      extractedData: ocrResults.extractedData, // Only extracted fields, no photoRegion polygon details
+      confidence: ocrResults.confidence,
+      processedAt: ocrResults.processedAt,
+      photoUrl: ocrResults.photoUrl, // URL reference only
+    };
+    
+    // Remove photoRegion from extractedData sent to frontend (large polygon arrays)
+    if (leanOcrResults.extractedData.photoRegion) {
+      delete leanOcrResults.extractedData.photoRegion;
+    }
+    
     const response: DocumentOCRResponse = {
       success: validation.isValid,
-      ocrResults,
+      ocrResults: leanOcrResults as any, // Lean version without rawResponse
       isValid: validation.isValid,
       validationErrors: validation.errors,
       message: validation.isValid 
@@ -636,11 +654,14 @@ router.post('/complete', async (req: Request, res: Response) => {
 /**
  * GET /kyc/session/:id/summary
  * Get session summary (download report)
+ * For JSON format: returns lean session data without binary buffers
+ * For PDF/TXT format: generates report from full session data
  */
 router.get('/session/:id/summary', async (req: Request, res: Response) => {
   try {
     const sessionId = req.params.id;
     
+    // Get full session for report generation
     const session = sessionManager.getSession(sessionId);
     if (!session) {
       return res.status(404).json({
@@ -665,7 +686,7 @@ router.get('/session/:id/summary', async (req: Request, res: Response) => {
         reportBuffer = fs.readFileSync(existingReportPath);
         console.log(`[KYC Routes] Using existing report: ${existingReportPath}`);
       } else {
-        // Generate new report
+        // Generate new report from full session data
         const report = await reportService.generatePDFReport(session);
         reportBuffer = report.buffer;
       }
@@ -680,8 +701,26 @@ router.get('/session/:id/summary', async (req: Request, res: Response) => {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(reportBuffer);
     } else {
-      // Return JSON summary
+      // Return lean JSON summary (no binary data)
+      const leanSession = sessionManager.getLeanSession(sessionId);
+      if (!leanSession) {
+        return res.status(404).json({
+          success: false,
+          error: 'Session not found',
+          message: `Session ${sessionId} not found`,
+        } as ErrorResponse);
+      }
+      // Generate summary from lean session
       const summary = reportService.generateSessionSummary(session);
+      // Ensure no binary data in summary response
+      if (summary.document) {
+        delete (summary.document as any).imageBuffer;
+        delete (summary.document as any).extractedPhotoBuffer;
+        if (summary.document.ocrResults) {
+          delete (summary.document.ocrResults as any).rawResponse;
+          delete (summary.document.ocrResults as any).photoBuffer;
+        }
+      }
       res.status(200).json(summary);
     }
   } catch (error) {
@@ -697,12 +736,15 @@ router.get('/session/:id/summary', async (req: Request, res: Response) => {
 /**
  * GET /kyc/session/:id
  * Get session details
+ * Returns lean session data without binary buffers to minimize payload size.
+ * All binary data (images, frames) remains stored on the server - only URLs are returned.
  */
 router.get('/session/:id', async (req: Request, res: Response) => {
   try {
     const sessionId = req.params.id;
     
-    const session = sessionManager.getSession(sessionId);
+    // Use lean session to avoid sending binary data to frontend
+    const session = sessionManager.getLeanSession(sessionId);
     if (!session) {
       return res.status(404).json({
         success: false,
@@ -728,10 +770,12 @@ router.get('/session/:id', async (req: Request, res: Response) => {
 /**
  * GET /kyc/sessions
  * Get all sessions (for admin/monitoring)
+ * Returns lean session data without binary buffers to minimize payload size.
  */
 router.get('/sessions', async (req: Request, res: Response) => {
   try {
-    const sessions = sessionManager.getAllSessions();
+    // Use lean sessions to avoid sending binary data
+    const sessions = sessionManager.getAllLeanSessions();
     const stats = sessionManager.getStatistics();
     
     res.status(200).json({

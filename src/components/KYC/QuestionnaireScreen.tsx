@@ -3,7 +3,17 @@ import kycApiService, { Question } from '../../services/kycApiService';
 
 interface QuestionnaireScreenProps {
   sessionId: string;
-  ocrData?: any;
+  /**
+   * Essential OCR data for display purposes only.
+   * Full OCR data for answer verification is stored in the backend
+   * against the sessionId and used there for verification.
+   */
+  ocrData?: {
+    address?: string;
+    fullName?: string;
+    dateOfBirth?: string;
+    documentNumber?: string;
+  };
   onCompleted: () => void;
   onSkip: () => void;
   loading: boolean;

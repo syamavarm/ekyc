@@ -463,5 +463,130 @@ export class KYCSessionManager {
       ).length,
     };
   }
+
+  /**
+   * Get a "lean" version of session data suitable for API responses.
+   * Strips out large binary data (buffers) and raw responses to minimize payload size.
+   * All binary data remains stored in the backend - only URLs/references are returned.
+   */
+  getLeanSession(sessionId: string): Omit<KYCSession, 'document'> & { document?: LeanDocumentData } | undefined {
+    const session = this.sessions.get(sessionId);
+    if (!session) return undefined;
+    
+    return this.createLeanSession(session);
+  }
+
+  /**
+   * Get all sessions in lean format (for admin/monitoring)
+   */
+  getAllLeanSessions(): Array<Omit<KYCSession, 'document'> & { document?: LeanDocumentData }> {
+    return Array.from(this.sessions.values()).map(session => this.createLeanSession(session));
+  }
+
+  /**
+   * Create lean session object by stripping binary data
+   */
+  private createLeanSession(session: KYCSession): Omit<KYCSession, 'document'> & { document?: LeanDocumentData } {
+    const { document, ...sessionWithoutDoc } = session;
+    
+    // Create lean document data (without buffers)
+    let leanDocument: LeanDocumentData | undefined;
+    if (document) {
+      const {
+        imageBuffer,
+        extractedPhotoBuffer,
+        ocrResults,
+        ...docWithoutBuffers
+      } = document;
+      
+      // Create lean OCR results (without raw response and buffers)
+      let leanOcrResults: LeanOCRResults | undefined;
+      if (ocrResults) {
+        const { rawResponse, photoBuffer, ...ocrWithoutRaw } = ocrResults;
+        leanOcrResults = ocrWithoutRaw;
+      }
+      
+      leanDocument = {
+        ...docWithoutBuffers,
+        ocrResults: leanOcrResults,
+        // Keep URLs for reference
+        hasImageBuffer: !!imageBuffer,
+        hasExtractedPhoto: !!extractedPhotoBuffer,
+      };
+    }
+    
+    // Create lean face verification (without buffers)
+    let leanFaceVerification = session.faceVerification;
+    if (leanFaceVerification?.capturedImageBuffer) {
+      const { capturedImageBuffer, ...faceWithoutBuffer } = leanFaceVerification;
+      leanFaceVerification = {
+        ...faceWithoutBuffer,
+        hasCapturedImage: true,
+      };
+    }
+    
+    // Create lean liveness data (without video frames if stored)
+    let leanLivenessCheck = session.livenessCheck;
+    if (leanLivenessCheck?.videoFrames && leanLivenessCheck.videoFrames.length > 0) {
+      const { videoFrames, ...livenessWithoutFrames } = leanLivenessCheck;
+      leanLivenessCheck = {
+        ...livenessWithoutFrames,
+        frameCount: videoFrames.length,
+      };
+    }
+    
+    return {
+      ...sessionWithoutDoc,
+      document: leanDocument,
+      faceVerification: leanFaceVerification as FaceVerificationData | undefined,
+      livenessCheck: leanLivenessCheck as LivenessCheckData | undefined,
+    };
+  }
+}
+
+/**
+ * Lean document data without binary buffers (for API responses)
+ */
+export interface LeanDocumentData {
+  documentId: string;
+  documentType: import('../types/kyc.types').DocumentType;
+  uploadedAt: Date;
+  imageUrl: string;
+  isValid: boolean;
+  validationErrors?: string[];
+  confidenceScore?: number;
+  extractedPhotoUrl?: string;
+  ocrResultsUrl?: string;
+  ocrResults?: LeanOCRResults;
+  // Flags indicating binary data exists on server
+  hasImageBuffer?: boolean;
+  hasExtractedPhoto?: boolean;
+}
+
+/**
+ * Lean OCR results without raw response and binary data
+ */
+export interface LeanOCRResults {
+  documentType: import('../types/kyc.types').DocumentType;
+  extractedData: {
+    fullName?: string;
+    firstName?: string;
+    lastName?: string;
+    dateOfBirth?: string;
+    documentNumber?: string;
+    expiryDate?: string;
+    issueDate?: string;
+    nationality?: string;
+    gender?: string;
+    address?: string;
+    placeOfBirth?: string;
+    photoRegion?: Array<{
+      pageNumber: number;
+      polygon: number[];
+    }>;
+  };
+  photoUrl?: string;
+  confidence: number;
+  processedAt: Date;
 }
 

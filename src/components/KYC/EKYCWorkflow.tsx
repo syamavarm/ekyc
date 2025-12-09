@@ -43,12 +43,29 @@ interface EKYCWorkflowProps {
   questionnaireFormId?: string;
 }
 
+/**
+ * Essential OCR data stored in frontend state.
+ * Full OCR data is stored in the backend against sessionId.
+ * Frontend only stores what's needed for subsequent workflow steps.
+ */
+interface EssentialOCRData {
+  address?: string;        // Needed for location comparison
+  fullName?: string;       // Display purposes
+  dateOfBirth?: string;    // Display purposes
+  documentNumber?: string; // Display purposes
+}
+
 interface WorkflowState {
   sessionId: string;
   currentStep: WorkflowStep;
   completedSteps: WorkflowStep[];
   documentId?: string;
-  ocrData?: any;
+  /**
+   * Only essential OCR fields are stored here.
+   * Full OCR data (including raw response, confidence scores, etc.)
+   * is stored in the backend against the sessionId.
+   */
+  essentialOcrData?: EssentialOCRData;
   error?: string;
 }
 
@@ -272,10 +289,19 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   };
 
   const handleDocumentVerified = async (documentId: string, ocrData: any) => {
+    // Extract only essential OCR data needed for subsequent steps.
+    // Full OCR data remains stored in the backend against the sessionId.
+    const essentialOcrData: EssentialOCRData = {
+      address: ocrData?.extractedData?.address,
+      fullName: ocrData?.extractedData?.fullName,
+      dateOfBirth: ocrData?.extractedData?.dateOfBirth,
+      documentNumber: ocrData?.extractedData?.documentNumber,
+    };
+    
     setState(prev => ({
       ...prev,
       documentId,
-      ocrData,
+      essentialOcrData,
     }));
     const nextStep = getNextStep('document');
     moveToNextStep(nextStep);
@@ -341,7 +367,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
             sessionId={state.sessionId}
             onLocationCaptured={handleLocationCaptured}
             loading={loading}
-            documentAddress={state.ocrData?.extractedData?.address}
+            documentAddress={state.essentialOcrData?.address}
             locationRadiusKm={workflowSteps?.locationRadiusKm}
           />
         );
@@ -465,7 +491,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
         return (
           <QuestionnaireScreen
             sessionId={state.sessionId}
-            ocrData={state.ocrData}
+            ocrData={state.essentialOcrData}
             onCompleted={handleQuestionnaireCompleted}
             onSkip={handleSkipQuestionnaire}
             loading={loading}
