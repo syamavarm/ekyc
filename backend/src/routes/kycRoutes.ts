@@ -597,6 +597,22 @@ router.post('/complete', async (req: Request, res: Response) => {
     // Get updated session for status
     const updatedSession = sessionManager.getSession(sessionId);
     
+    // Auto-generate and save the KYC report (only if not already generated)
+    if (updatedSession) {
+      const existingReport = reportService.getReportPath(sessionId);
+      if (!existingReport) {
+        try {
+          const report = await reportService.generatePDFReport(updatedSession);
+          console.log(`[KYC Routes] Report saved: ${report.filepath}`);
+        } catch (reportError) {
+          console.error('[KYC Routes] Failed to generate report:', reportError);
+          // Don't fail the completion if report generation fails
+        }
+      } else {
+        console.log(`[KYC Routes] Report already exists for session ${sessionId}`);
+      }
+    }
+    
     const response = {
       success: result.success,
       sessionId,
@@ -638,8 +654,21 @@ router.get('/session/:id/summary', async (req: Request, res: Response) => {
     const format = req.query.format as string || 'json';
     
     if (format === 'pdf' || format === 'txt') {
-      // Generate PDF/text report
-      const report = await reportService.generatePDFReport(session);
+      // Check if report already exists
+      const existingReportPath = reportService.getReportPath(sessionId);
+      
+      let reportBuffer: Buffer;
+      
+      if (existingReportPath) {
+        // Use existing report
+        const fs = require('fs');
+        reportBuffer = fs.readFileSync(existingReportPath);
+        console.log(`[KYC Routes] Using existing report: ${existingReportPath}`);
+      } else {
+        // Generate new report
+        const report = await reportService.generatePDFReport(session);
+        reportBuffer = report.buffer;
+      }
       
       const contentType = format === 'pdf' 
         ? 'application/pdf'
@@ -649,7 +678,7 @@ router.get('/session/:id/summary', async (req: Request, res: Response) => {
       
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.send(report.buffer);
+      res.send(reportBuffer);
     } else {
       // Return JSON summary
       const summary = reportService.generateSessionSummary(session);

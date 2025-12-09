@@ -32,6 +32,7 @@ interface WorkflowSteps {
 }
 
 interface EKYCWorkflowProps {
+  sessionId: string;
   userId: string;
   email?: string;
   mobileNumber?: string;
@@ -52,6 +53,7 @@ interface WorkflowState {
 }
 
 const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
+  sessionId: initialSessionId,
   userId,
   email,
   mobileNumber,
@@ -62,7 +64,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   questionnaireFormId,
 }) => {
   const [state, setState] = useState<WorkflowState>({
-    sessionId: '',
+    sessionId: initialSessionId,
     currentStep: 'consent',
     completedSteps: [],
   });
@@ -127,16 +129,14 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
 
   const enabledSteps = getEnabledSteps();
 
-  // Initialize KYC session on mount
+  // Cleanup video stream on unmount
   useEffect(() => {
-    initializeSession();
     return () => {
-      // Cleanup video stream
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
       }
     };
-  }, []);
+  }, [localStream]);
 
   // Handle video stream assignment (like original VideoCall component)
   useEffect(() => {
@@ -153,25 +153,6 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       }
     };
   }, [localStream]);
-
-  const initializeSession = async () => {
-    try {
-      setLoading(true);
-      const response = await kycApiService.startSession(userId, email, mobileNumber, workflowConfigId);
-      setState(prev => ({
-        ...prev,
-        sessionId: response.sessionId,
-      }));
-    } catch (error) {
-      console.error('Failed to initialize session:', error);
-      setState(prev => ({
-        ...prev,
-        error: 'Failed to start KYC session. Please try again.',
-      }));
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getNextStep = (currentStep: WorkflowStep): WorkflowStep => {
     // Use the enabled steps list to determine the next step
@@ -344,15 +325,6 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   };
 
   const renderCurrentStep = () => {
-    if (loading && !state.sessionId) {
-      return (
-        <div className="loading-container">
-          <div className="spinner"></div>
-          <p>Initializing KYC session...</p>
-        </div>
-      );
-    }
-
     switch (state.currentStep) {
       case 'consent':
         return (

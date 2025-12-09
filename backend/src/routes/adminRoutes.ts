@@ -23,7 +23,7 @@ export { workflowConfigManager };
  */
 router.post('/workflow/create', (req, res) => {
   try {
-    const { name, description, steps, formId, createdBy }: CreateWorkflowRequest = req.body;
+    const { name, steps, formId, createdBy }: CreateWorkflowRequest = req.body;
 
     // Validate required fields
     if (!name || !steps) {
@@ -38,7 +38,6 @@ router.post('/workflow/create', (req, res) => {
     const configuration = workflowConfigManager.createConfiguration(
       name,
       steps,
-      description,
       formId,
       createdBy
     );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './AdminWorkflowConfig.css';
 
 interface WorkflowSteps {
@@ -20,40 +20,99 @@ interface QuestionSet {
 interface WorkflowConfiguration {
   configId: string;
   name: string;
-  description?: string;
   steps: WorkflowSteps;
   formId?: string;
   createdAt: string;
   isActive: boolean;
 }
 
+interface OCRResults {
+  extractedData: {
+    fullName?: string;
+    dateOfBirth?: string;
+    documentNumber?: string;
+    nationality?: string;
+    address?: string;
+    [key: string]: any;
+  };
+  confidence: number;
+}
+
+interface VerificationResults {
+  documentVerified: boolean;
+  faceVerified: boolean;
+  livenessVerified: boolean;
+  locationVerified: boolean;
+  questionnaireVerified?: boolean;
+  overallVerified: boolean;
+}
+
+interface KYCSession {
+  sessionId: string;
+  userId: string;
+  mobileNumber?: string;
+  email?: string;
+  status: string;
+  createdAt: string;
+  completedAt?: string;
+  workflowConfigId?: string;
+  document?: {
+    documentType: string;
+    ocrResults?: OCRResults;
+    isValid: boolean;
+  };
+  faceVerification?: {
+    matchScore: number;
+    isMatch: boolean;
+    confidence: number;
+  };
+  livenessCheck?: {
+    overallResult: boolean;
+    confidenceScore: number;
+  };
+  verificationResults: VerificationResults;
+  overallScore?: number;
+}
+
+type TabType = 'configurations' | 'sessions';
+
 const AdminWorkflowConfig: React.FC = () => {
+  // Tab state
+  const [activeTab, setActiveTab] = useState<TabType>('configurations');
+  
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingConfig, setEditingConfig] = useState<WorkflowConfiguration | null>(null);
+  
+  // Form state for modal
   const [workflowName, setWorkflowName] = useState<string>('');
-  const [description, setDescription] = useState<string>('');
   const [steps, setSteps] = useState<WorkflowSteps>({
     locationCapture: true,
     documentOCR: true,
     faceMatch: true,
     livenessCheck: true,
     questionnaire: true,
-    locationRadiusKm: undefined, // Default: no radius = country comparison
+    locationRadiusKm: undefined,
   });
   const [selectedForm, setSelectedForm] = useState<string>('');
+  
+  // Data state
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
-  const [generatedLink, setGeneratedLink] = useState<string>('');
-  const [configId, setConfigId] = useState<string>('');
+  const [existingConfigs, setExistingConfigs] = useState<WorkflowConfiguration[]>([]);
+  const [sessions, setSessions] = useState<KYCSession[]>([]);
+  
+  // UI state
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
-  const [existingConfigs, setExistingConfigs] = useState<WorkflowConfiguration[]>([]);
-  const [showConfigList, setShowConfigList] = useState<boolean>(false);
 
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
-  // Load question sets on mount
+  // Fetch data on mount
   useEffect(() => {
     fetchQuestionSets();
     fetchExistingConfigs();
+    fetchSessions();
   }, []);
 
   const fetchQuestionSets = async () => {
@@ -63,7 +122,6 @@ const AdminWorkflowConfig: React.FC = () => {
       
       if (data.success && data.questionSets) {
         setQuestionSets(data.questionSets);
-        // Set default to 'basic' if available
         const basicSet = data.questionSets.find((qs: QuestionSet) => qs.id === 'basic');
         if (basicSet) {
           setSelectedForm(basicSet.id);
@@ -87,11 +145,58 @@ const AdminWorkflowConfig: React.FC = () => {
     }
   };
 
+  const fetchSessions = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/kyc/sessions`);
+      const data = await response.json();
+      
+      if (data.success && data.sessions) {
+        setSessions(data.sessions);
+      }
+    } catch (err) {
+      console.error('Error fetching sessions:', err);
+    }
+  };
+
   const handleStepToggle = (stepName: keyof WorkflowSteps) => {
     setSteps(prev => ({
       ...prev,
       [stepName]: !prev[stepName],
     }));
+  };
+
+  const resetModalForm = useCallback(() => {
+    setWorkflowName('');
+    setSteps({
+      locationCapture: true,
+      documentOCR: true,
+      faceMatch: true,
+      livenessCheck: true,
+      questionnaire: true,
+      locationRadiusKm: undefined,
+    });
+    setSelectedForm(questionSets.find(qs => qs.id === 'basic')?.id || '');
+    setEditingConfig(null);
+  }, [questionSets]);
+
+  const openCreateModal = () => {
+    resetModalForm();
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (config: WorkflowConfiguration) => {
+    setEditingConfig(config);
+    setWorkflowName(config.name);
+    setSteps(config.steps);
+    setSelectedForm(config.formId || '');
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetModalForm();
+    setError('');
+    setSuccess('');
   };
 
   const validateConfiguration = (): boolean => {
@@ -100,7 +205,6 @@ const AdminWorkflowConfig: React.FC = () => {
       return false;
     }
 
-    // Check if at least one step is enabled
     const hasEnabledStep = Object.values(steps).some(step => step === true);
     if (!hasEnabledStep) {
       setError('At least one workflow step must be enabled');
@@ -110,11 +214,9 @@ const AdminWorkflowConfig: React.FC = () => {
     return true;
   };
 
-  const handleGenerateLink = async () => {
+  const handleSaveConfiguration = async () => {
     setError('');
     setSuccess('');
-    setGeneratedLink('');
-    setConfigId('');
 
     if (!validateConfiguration()) {
       return;
@@ -123,63 +225,67 @@ const AdminWorkflowConfig: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/workflow/create`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: workflowName,
-          description: description || undefined,
-          steps,
-          formId: steps.questionnaire ? selectedForm : undefined,
-          createdBy: 'admin', // In production, use actual admin user ID
-        }),
-      });
+      if (editingConfig) {
+        // Update existing configuration
+        const response = await fetch(`${API_BASE_URL}/admin/workflow/${editingConfig.configId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: workflowName,
+            steps,
+            formId: steps.questionnaire ? selectedForm : undefined,
+          }),
+        });
 
-      const data = await response.json();
+        const data = await response.json();
 
-      if (data.success) {
-        setGeneratedLink(data.linkUrl);
-        setConfigId(data.configId);
-        setSuccess('Workflow configuration created successfully!');
-        
-        // Refresh configs list
-        await fetchExistingConfigs();
+        if (data.success) {
+          setSuccess('Configuration updated successfully!');
+          await fetchExistingConfigs();
+          setTimeout(closeModal, 1500);
+        } else {
+          setError(data.message || 'Failed to update configuration');
+        }
       } else {
-        setError(data.message || 'Failed to create workflow configuration');
+        // Create new configuration
+        const response = await fetch(`${API_BASE_URL}/admin/workflow/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: workflowName,
+            steps,
+            formId: steps.questionnaire ? selectedForm : undefined,
+            createdBy: 'admin',
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          setSuccess('Configuration created successfully!');
+          await fetchExistingConfigs();
+          
+          // Copy link to clipboard
+          if (data.linkUrl) {
+            navigator.clipboard.writeText(data.linkUrl);
+            setSuccess('Configuration created! Link copied to clipboard.');
+          }
+          
+          setTimeout(closeModal, 1500);
+        } else {
+          setError(data.message || 'Failed to create configuration');
+        }
       }
     } catch (err: any) {
-      console.error('Error creating workflow configuration:', err);
-      setError(err.message || 'Failed to create workflow configuration');
+      console.error('Error saving configuration:', err);
+      setError(err.message || 'Failed to save configuration');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleCopyLink = () => {
-    if (generatedLink) {
-      navigator.clipboard.writeText(generatedLink);
-      setSuccess('Link copied to clipboard!');
-    }
-  };
-
-  const handleReset = () => {
-    setWorkflowName('');
-    setDescription('');
-    setSteps({
-      locationCapture: true,
-      documentOCR: true,
-      faceMatch: true,
-      livenessCheck: true,
-      questionnaire: true,
-      locationRadiusKm: undefined, // Default: no radius = country comparison
-    });
-    setSelectedForm(questionSets.find(qs => qs.id === 'basic')?.id || '');
-    setGeneratedLink('');
-    setConfigId('');
-    setError('');
-    setSuccess('');
   };
 
   const handleToggleActive = async (config: WorkflowConfiguration) => {
@@ -194,6 +300,7 @@ const AdminWorkflowConfig: React.FC = () => {
       if (data.success) {
         await fetchExistingConfigs();
         setSuccess(`Configuration ${config.isActive ? 'deactivated' : 'activated'} successfully!`);
+        setTimeout(() => setSuccess(''), 3000);
       } else {
         setError(data.message || 'Failed to update configuration');
       }
@@ -218,6 +325,7 @@ const AdminWorkflowConfig: React.FC = () => {
       if (data.success) {
         await fetchExistingConfigs();
         setSuccess('Configuration deleted successfully!');
+        setTimeout(() => setSuccess(''), 3000);
       } else {
         setError(data.message || 'Failed to delete configuration');
       }
@@ -227,354 +335,517 @@ const AdminWorkflowConfig: React.FC = () => {
     }
   };
 
+  const handleCopyLink = (configId: string) => {
+    const link = `${window.location.origin}/kyc/${configId}`;
+    navigator.clipboard.writeText(link);
+    setSuccess('Link copied to clipboard!');
+    setTimeout(() => setSuccess(''), 3000);
+  };
+
+  const handleDownloadReport = async (sessionId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/kyc/session/${sessionId}/summary?format=txt`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to download report');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kyc_report_${sessionId}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      setSuccess('Report downloaded successfully!');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      console.error('Error downloading report:', err);
+      setError(err.message || 'Failed to download report');
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString();
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'status-badge success';
+      case 'failed':
+        return 'status-badge danger';
+      case 'expired':
+        return 'status-badge warning';
+      default:
+        return 'status-badge info';
+    }
+  };
+
+  const renderConfigurationForm = () => (
+    <div className="modal-form">
+      <div className="form-section">
+        <h3>Workflow Details</h3>
+        
+        <div className="form-group">
+          <label htmlFor="workflowName">
+            Workflow Name <span className="required">*</span>
+          </label>
+          <input
+            id="workflowName"
+            type="text"
+            value={workflowName}
+            onChange={(e) => setWorkflowName(e.target.value)}
+            placeholder="e.g., Standard KYC, Quick Verification"
+            className="form-input"
+          />
+        </div>
+      </div>
+
+      <div className="form-section">
+        <h3>Workflow Steps</h3>
+        <div className="steps-grid-modal">
+          <div className="step-item">
+            <div className="step-info-compact">
+              <span className="step-icon-small">📄</span>
+              <span>Document OCR</span>
+            </div>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={steps.documentOCR}
+                onChange={() => handleStepToggle('documentOCR')}
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div className="step-item">
+            <div className="step-info-compact">
+              <span className="step-icon-small">📍</span>
+              <span>Location Capture</span>
+            </div>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={steps.locationCapture}
+                onChange={() => handleStepToggle('locationCapture')}
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+
+          {steps.locationCapture && steps.documentOCR && (
+            <div className="step-item full-width">
+              <label className="config-label">
+                Location Radius (km)
+              </label>
+              <div className="radius-input-group">
+                <input
+                  type="number"
+                  min="0"
+                  max="500"
+                  value={steps.locationRadiusKm || ''}
+                  placeholder="Not set"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSteps(prev => ({
+                      ...prev,
+                      locationRadiusKm: value === '' ? undefined : Math.max(0, Math.min(500, parseInt(value) || 0))
+                    }));
+                  }}
+                  className="radius-input"
+                />
+                <span className="radius-unit">km</span>
+              </div>
+              <p className="config-hint">
+                {steps.locationRadiusKm && steps.locationRadiusKm > 0
+                  ? `User must be within ${steps.locationRadiusKm} km of document address`
+                  : 'No radius: Country comparison only'}
+              </p>
+            </div>
+          )}
+
+          <div className="step-item">
+            <div className="step-info-compact">
+              <span className="step-icon-small">👤</span>
+              <span>Face Match</span>
+            </div>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={steps.faceMatch}
+                onChange={() => handleStepToggle('faceMatch')}
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div className="step-item">
+            <div className="step-info-compact">
+              <span className="step-icon-small">🎭</span>
+              <span>Liveness Check</span>
+            </div>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={steps.livenessCheck}
+                onChange={() => handleStepToggle('livenessCheck')}
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div className="step-item">
+            <div className="step-info-compact">
+              <span className="step-icon-small">❓</span>
+              <span>Questionnaire</span>
+            </div>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={steps.questionnaire}
+                onChange={() => handleStepToggle('questionnaire')}
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {steps.questionnaire && (
+        <div className="form-section">
+          <h3>Question Set</h3>
+          <div className="form-group">
+            <select
+              value={selectedForm}
+              onChange={(e) => setSelectedForm(e.target.value)}
+              className="form-select"
+            >
+              <option value="">Select a question set...</option>
+              {questionSets.map((qs) => (
+                <option key={qs.id} value={qs.id}>
+                  {qs.name} ({qs.questionCount} questions)
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="alert alert-error">
+          <span className="alert-icon">⚠️</span>
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="alert alert-success">
+          <span className="alert-icon">✓</span>
+          {success}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderConfigurationsTab = () => (
+    <div className="tab-content">
+      <div className="tab-header">
+        <h2>Workflow Configurations</h2>
+        <button className="btn-primary" onClick={openCreateModal}>
+          + Create Configuration
+        </button>
+      </div>
+
+      <div className="table-container">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Steps</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {existingConfigs.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="empty-row">
+                  No configurations yet. Create your first one!
+                </td>
+              </tr>
+            ) : (
+              existingConfigs.map((config) => (
+                <tr key={config.configId} className={!config.isActive ? 'inactive-row' : ''}>
+                  <td className="name-cell">
+                    <strong>{config.name}</strong>
+                    <span className="config-id">ID: {config.configId.slice(0, 8)}...</span>
+                  </td>
+                  <td className="steps-cell">
+                    <div className="step-badges">
+                      {config.steps.documentOCR && <span className="step-badge">OCR</span>}
+                      {config.steps.locationCapture && <span className="step-badge">Location</span>}
+                      {config.steps.faceMatch && <span className="step-badge">Face</span>}
+                      {config.steps.livenessCheck && <span className="step-badge">Liveness</span>}
+                      {config.steps.questionnaire && <span className="step-badge">Quiz</span>}
+                    </div>
+                  </td>
+                  <td>
+                    <span className={`status-badge ${config.isActive ? 'active' : 'inactive'}`}>
+                      {config.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="date-cell">
+                    {new Date(config.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="actions-cell">
+                    <button
+                      className="btn-icon btn-edit"
+                      onClick={() => openEditModal(config)}
+                      title="Edit"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      className="btn-icon btn-copy"
+                      onClick={() => handleCopyLink(config.configId)}
+                      title="Copy Link"
+                    >
+                      🔗
+                    </button>
+                    <button
+                      className={`btn-icon ${config.isActive ? 'btn-deactivate' : 'btn-activate'}`}
+                      onClick={() => handleToggleActive(config)}
+                      title={config.isActive ? 'Deactivate' : 'Activate'}
+                    >
+                      {config.isActive ? '⏸️' : '▶️'}
+                    </button>
+                    <button
+                      className="btn-icon btn-delete"
+                      onClick={() => handleDeleteConfig(config)}
+                      title="Delete"
+                    >
+                      🗑️
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const renderSessionsTab = () => (
+    <div className="tab-content">
+      <div className="tab-header">
+        <h2>KYC Sessions</h2>
+        <button className="btn-secondary" onClick={fetchSessions}>
+          ↻ Refresh
+        </button>
+      </div>
+
+      <div className="table-container sessions-table">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Session ID</th>
+              <th>Mobile Number</th>
+              <th>OCR Details</th>
+              <th>Checks & Scores</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sessions.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="empty-row">
+                  No sessions found.
+                </td>
+              </tr>
+            ) : (
+              sessions.map((session) => (
+                <tr key={session.sessionId}>
+                  <td className="session-id-cell">
+                    <code>{session.sessionId.slice(0, 8)}...</code>
+                    <button
+                      className="btn-mini"
+                      onClick={() => {
+                        navigator.clipboard.writeText(session.sessionId);
+                        setSuccess('Session ID copied!');
+                        setTimeout(() => setSuccess(''), 2000);
+                      }}
+                      title="Copy full ID"
+                    >
+                      📋
+                    </button>
+                  </td>
+                  <td>
+                    {session.mobileNumber || <span className="muted">N/A</span>}
+                  </td>
+                  <td className="ocr-cell">
+                    {session.document?.ocrResults?.extractedData ? (
+                      <div className="ocr-details">
+                        <div className="ocr-row">
+                          <span className="ocr-label">Name:</span>
+                          <span>{session.document.ocrResults.extractedData.fullName || 'N/A'}</span>
+                        </div>
+                        <div className="ocr-row">
+                          <span className="ocr-label">DOB:</span>
+                          <span>{session.document.ocrResults.extractedData.dateOfBirth || 'N/A'}</span>
+                        </div>
+                        <div className="ocr-row">
+                          <span className="ocr-label">Doc #:</span>
+                          <span>{session.document.ocrResults.extractedData.documentNumber || 'N/A'}</span>
+                        </div>
+                        <div className="ocr-row">
+                          <span className="ocr-label">Confidence:</span>
+                          <span>{((session.document.ocrResults.confidence || 0) * 100).toFixed(0)}%</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="muted">No OCR data</span>
+                    )}
+                  </td>
+                  <td className="checks-cell">
+                    <div className="checks-grid">
+                      <div className={`check-item ${session.verificationResults.documentVerified ? 'passed' : 'failed'}`}>
+                        <span className="check-icon">{session.verificationResults.documentVerified ? '✓' : '✗'}</span>
+                        <span>Document</span>
+                      </div>
+                      <div className={`check-item ${session.verificationResults.faceVerified ? 'passed' : 'failed'}`}>
+                        <span className="check-icon">{session.verificationResults.faceVerified ? '✓' : '✗'}</span>
+                        <span>Face {session.faceVerification ? `(${(session.faceVerification.matchScore * 100).toFixed(0)}%)` : ''}</span>
+                      </div>
+                      <div className={`check-item ${session.verificationResults.livenessVerified ? 'passed' : 'failed'}`}>
+                        <span className="check-icon">{session.verificationResults.livenessVerified ? '✓' : '✗'}</span>
+                        <span>Liveness {session.livenessCheck ? `(${(session.livenessCheck.confidenceScore * 100).toFixed(0)}%)` : ''}</span>
+                      </div>
+                      <div className={`check-item ${session.verificationResults.locationVerified ? 'passed' : 'failed'}`}>
+                        <span className="check-icon">{session.verificationResults.locationVerified ? '✓' : '✗'}</span>
+                        <span>Location</span>
+                      </div>
+                      {session.verificationResults.questionnaireVerified !== undefined && (
+                        <div className={`check-item ${session.verificationResults.questionnaireVerified ? 'passed' : 'failed'}`}>
+                          <span className="check-icon">{session.verificationResults.questionnaireVerified ? '✓' : '✗'}</span>
+                          <span>Quiz</span>
+                        </div>
+                      )}
+                    </div>
+                    {session.overallScore !== undefined && (
+                      <div className="overall-score">
+                        Overall: <strong>{(session.overallScore * 100).toFixed(0)}%</strong>
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <span className={getStatusBadgeClass(session.status)}>
+                      {session.status}
+                    </span>
+                  </td>
+                  <td className="date-cell">
+                    {formatDate(session.createdAt)}
+                  </td>
+                  <td className="actions-cell">
+                    <button
+                      className="btn-icon btn-download"
+                      onClick={() => handleDownloadReport(session.sessionId)}
+                      title="Download Report"
+                    >
+                      📥
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
   return (
     <div className="admin-workflow-config">
       <div className="admin-header">
-        <h1>🔧 KYC Workflow Configuration</h1>
-        <p>Configure and generate custom KYC workflow links</p>
+        <h1>🔧 KYC Admin Dashboard</h1>
+        <p>Manage workflow configurations and monitor KYC sessions</p>
       </div>
 
+      {/* Global alerts */}
+      {success && !isModalOpen && (
+        <div className="global-alert alert-success">
+          <span className="alert-icon">✓</span>
+          {success}
+        </div>
+      )}
+      {error && !isModalOpen && (
+        <div className="global-alert alert-error">
+          <span className="alert-icon">⚠️</span>
+          {error}
+        </div>
+      )}
+
+      {/* Tabs */}
       <div className="admin-container">
-        <div className="config-form">
-          {/* Workflow Name and Description */}
-          <div className="form-section">
-            <h2>Workflow Details</h2>
-            
-            <div className="form-group">
-              <label htmlFor="workflowName">
-                Workflow Name <span className="required">*</span>
-              </label>
-              <input
-                id="workflowName"
-                type="text"
-                value={workflowName}
-                onChange={(e) => setWorkflowName(e.target.value)}
-                placeholder="e.g., Standard KYC, Quick Verification, Enhanced KYC"
-                className="form-input"
-              />
+        <div className="tabs-container">
+          <button
+            className={`tab-button ${activeTab === 'configurations' ? 'active' : ''}`}
+            onClick={() => setActiveTab('configurations')}
+          >
+            <span className="tab-icon">⚙️</span>
+            Workflow Configurations
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'sessions' ? 'active' : ''}`}
+            onClick={() => setActiveTab('sessions')}
+          >
+            <span className="tab-icon">📋</span>
+            Sessions
+          </button>
+        </div>
+
+        <div className="tab-panel">
+          {activeTab === 'configurations' && renderConfigurationsTab()}
+          {activeTab === 'sessions' && renderSessionsTab()}
+        </div>
+      </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{editingConfig ? 'Edit Configuration' : 'Create New Configuration'}</h2>
+              <button className="modal-close" onClick={closeModal}>×</button>
             </div>
-
-            <div className="form-group">
-              <label htmlFor="description">Description (Optional)</label>
-              <textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Brief description of this workflow..."
-                className="form-textarea"
-                rows={3}
-              />
+            <div className="modal-body">
+              {renderConfigurationForm()}
             </div>
-          </div>
-
-          {/* Workflow Steps Configuration */}
-          <div className="form-section">
-            <h2>Select Workflow Steps</h2>
-            <p className="section-subtitle">Choose which steps users must complete</p>
-
-            <div className="steps-grid">
-              <div className="step-card">
-                <div className="step-header">
-                  <div className="step-icon">📄</div>
-                  <div className="step-info">
-                    <h3>Document OCR</h3>
-                    <p>Upload and extract data from ID documents</p>
-                  </div>
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={steps.documentOCR}
-                      onChange={() => handleStepToggle('documentOCR')}
-                    />
-                    <span className="toggle-slider"></span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="step-card">
-                <div className="step-header">
-                  <div className="step-icon">📍</div>
-                  <div className="step-info">
-                    <h3>Location Capture</h3>
-                    <p>Capture user's GPS and compare with document address</p>
-                  </div>
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={steps.locationCapture}
-                      onChange={() => handleStepToggle('locationCapture')}
-                    />
-                    <span className="toggle-slider"></span>
-                  </label>
-                </div>
-                {steps.locationCapture && steps.documentOCR && (
-                  <div className="step-config">
-                    <label htmlFor="locationRadius" className="config-label">
-                      📏 Location Comparison Radius (km) - Optional
-                    </label>
-                    <div className="radius-input-group">
-                      <input
-                        id="locationRadius"
-                        type="number"
-                        min="0"
-                        max="500"
-                        value={steps.locationRadiusKm || ''}
-                        placeholder="Not set"
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setSteps(prev => ({
-                            ...prev,
-                            locationRadiusKm: value === '' ? undefined : Math.max(0, Math.min(500, parseInt(value) || 0))
-                          }));
-                        }}
-                        className="radius-input"
-                      />
-                      <span className="radius-unit">km</span>
-                      {steps.locationRadiusKm && steps.locationRadiusKm > 0 && (
-                        <button
-                          type="button"
-                          className="btn-clear-radius"
-                          onClick={() => setSteps(prev => ({ ...prev, locationRadiusKm: undefined }))}
-                          title="Clear radius (use country comparison instead)"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                    <p className="config-hint">
-                      {steps.locationRadiusKm && steps.locationRadiusKm > 0
-                        ? `User's GPS must be within ${steps.locationRadiusKm} km of their document address`
-                        : '🌍 No radius set: User must be in the same country as their document address'}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="step-card">
-                <div className="step-header">
-                  <div className="step-icon">👤</div>
-                  <div className="step-info">
-                    <h3>Face Match</h3>
-                    <p>Verify face matches document photo</p>
-                  </div>
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={steps.faceMatch}
-                      onChange={() => handleStepToggle('faceMatch')}
-                    />
-                    <span className="toggle-slider"></span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="step-card">
-                <div className="step-header">
-                  <div className="step-icon">🎭</div>
-                  <div className="step-info">
-                    <h3>Liveness Check</h3>
-                    <p>Verify user is a real person (not a photo/video)</p>
-                  </div>
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={steps.livenessCheck}
-                      onChange={() => handleStepToggle('livenessCheck')}
-                    />
-                    <span className="toggle-slider"></span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="step-card">
-                <div className="step-header">
-                  <div className="step-icon">❓</div>
-                  <div className="step-info">
-                    <h3>Questionnaire</h3>
-                    <p>Ask verification questions based on document</p>
-                  </div>
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={steps.questionnaire}
-                      onChange={() => handleStepToggle('questionnaire')}
-                    />
-                    <span className="toggle-slider"></span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Form Selection (if questionnaire is enabled) */}
-          {steps.questionnaire && (
-            <div className="form-section">
-              <h2>Select Question Set</h2>
-              <p className="section-subtitle">Choose which questionnaire to present to users</p>
-
-              <div className="form-group">
-                <label htmlFor="formSelect">Question Set</label>
-                <select
-                  id="formSelect"
-                  value={selectedForm}
-                  onChange={(e) => setSelectedForm(e.target.value)}
-                  className="form-select"
-                >
-                  <option value="">Select a question set...</option>
-                  {questionSets.map((qs) => (
-                    <option key={qs.id} value={qs.id}>
-                      {qs.name} ({qs.questionCount} questions)
-                    </option>
-                  ))}
-                </select>
-                {selectedForm && (
-                  <div className="form-hint">
-                    {questionSets.find((qs) => qs.id === selectedForm)?.description}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="form-actions">
-            <button
-              className="btn-secondary"
-              onClick={handleReset}
-              disabled={isLoading}
-            >
-              Reset
-            </button>
-            <button
-              className="btn-primary"
-              onClick={handleGenerateLink}
-              disabled={isLoading}
-            >
-              {isLoading ? 'Generating...' : 'Generate Link'}
-            </button>
-          </div>
-
-          {/* Error/Success Messages */}
-          {error && (
-            <div className="alert alert-error">
-              <span className="alert-icon">⚠️</span>
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="alert alert-success">
-              <span className="alert-icon">✓</span>
-              {success}
-            </div>
-          )}
-
-          {/* Generated Link Display */}
-          {generatedLink && (
-            <div className="generated-link-section">
-              <h2>🎉 Workflow Link Generated!</h2>
-              <p className="section-subtitle">Share this link with users to start the configured KYC workflow</p>
-
-              <div className="link-display">
-                <div className="link-info">
-                  <div className="link-label">Configuration ID:</div>
-                  <div className="link-value">{configId}</div>
-                </div>
-                <div className="link-info">
-                  <div className="link-label">Generated Link:</div>
-                  <div className="link-value">
-                    <a 
-                      href={generatedLink} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="link-url"
-                    >
-                      {generatedLink}
-                    </a>
-                  </div>
-                </div>
-              </div>
-
-              <button className="btn-copy" onClick={handleCopyLink}>
-                📋 Copy Link to Clipboard
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={closeModal} disabled={isLoading}>
+                Cancel
+              </button>
+              <button
+                className="btn-primary"
+                onClick={handleSaveConfiguration}
+                disabled={isLoading}
+              >
+                {isLoading ? 'Saving...' : (editingConfig ? 'Update' : 'Create')}
               </button>
             </div>
-          )}
-        </div>
-
-        {/* Existing Configurations */}
-        <div className="existing-configs-section">
-          <div className="section-header">
-            <h2>Existing Configurations</h2>
-            <button
-              className="btn-toggle-list"
-              onClick={() => setShowConfigList(!showConfigList)}
-            >
-              {showConfigList ? 'Hide' : 'Show'} ({existingConfigs.length})
-            </button>
           </div>
-
-          {showConfigList && (
-            <div className="configs-list">
-              {existingConfigs.length === 0 ? (
-                <p className="no-configs">No configurations yet. Create your first one above!</p>
-              ) : (
-                existingConfigs.map((config) => (
-                  <div key={config.configId} className={`config-item ${!config.isActive ? 'inactive' : ''}`}>
-                    <div className="config-header">
-                      <h3>{config.name}</h3>
-                      <span className={`status-badge ${config.isActive ? 'active' : 'inactive'}`}>
-                        {config.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                    {config.description && <p className="config-description">{config.description}</p>}
-                    <div className="config-steps">
-                      {Object.entries(config.steps).map(([step, enabled]) => (
-                        enabled && (
-                          <span key={step} className="step-badge">
-                            {step.replace(/([A-Z])/g, ' $1').trim()}
-                          </span>
-                        )
-                      ))}
-                    </div>
-                    <div className="config-meta">
-                      <span>ID: {config.configId}</span>
-                      <span>Created: {new Date(config.createdAt).toLocaleDateString()}</span>
-                    </div>
-                    <div className="config-actions">
-                      <button
-                        className={`btn-sm ${config.isActive ? 'btn-warning' : 'btn-success'}`}
-                        onClick={() => handleToggleActive(config)}
-                      >
-                        {config.isActive ? 'Deactivate' : 'Activate'}
-                      </button>
-                      <button
-                        className="btn-sm btn-info"
-                        onClick={() => {
-                          const link = `${window.location.origin}/kyc/${config.configId}`;
-                          navigator.clipboard.writeText(link);
-                          setSuccess('Link copied!');
-                        }}
-                      >
-                        Copy Link
-                      </button>
-                      <button
-                        className="btn-sm btn-danger"
-                        onClick={() => handleDeleteConfig(config)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
         </div>
-      </div>
+      )}
     </div>
   );
 };
 
 export default AdminWorkflowConfig;
-

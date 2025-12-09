@@ -9,7 +9,6 @@ interface WorkflowResolverProps {
 interface WorkflowConfiguration {
   configId: string;
   name: string;
-  description?: string;
   steps: {
     locationCapture: boolean;
     documentOCR: boolean;
@@ -30,6 +29,7 @@ const WorkflowResolver: React.FC<WorkflowResolverProps> = ({ configId }) => {
     userId: string;
     email?: string;
     mobileNumber: string;
+    sessionId: string;
   } | null>(null);
   const [completed, setCompleted] = useState<boolean>(false);
   const [completedSessionId, setCompletedSessionId] = useState<string>('');
@@ -62,14 +62,13 @@ const WorkflowResolver: React.FC<WorkflowResolverProps> = ({ configId }) => {
     }
   };
 
-  const handleStartKYC = (formData: { mobileNumber: string; otp: string }) => {
-    const user = {
-      userId: `user-${Date.now()}`,
-      email: `${formData.mobileNumber}@example.com`,
+  const handleStartKYC = (formData: { mobileNumber: string; otp: string; sessionId: string; userId: string; email?: string }) => {
+    setUserData({
+      userId: formData.userId,
+      email: formData.email,
       mobileNumber: formData.mobileNumber,
-    };
-    
-    setUserData(user);
+      sessionId: formData.sessionId,
+    });
     setStarted(true);
   };
 
@@ -132,9 +131,6 @@ const WorkflowResolver: React.FC<WorkflowResolverProps> = ({ configId }) => {
           <h1>KYC Verification Complete!</h1>
           <p>Your identity has been successfully verified.</p>
           <p className="session-id">Session ID: {completedSessionId}</p>
-          <button className="btn-primary" onClick={handleStartNew}>
-            Start New Verification
-          </button>
         </div>
       </div>
     );
@@ -143,13 +139,14 @@ const WorkflowResolver: React.FC<WorkflowResolverProps> = ({ configId }) => {
   if (!started) {
     return (
       <div className="workflow-start-page">
-        <KYCForm onStartKYC={handleStartKYC} />
+        <KYCForm onStartKYC={handleStartKYC} workflowConfigId={configId} />
       </div>
     );
   }
 
   return (
     <EKYCWorkflow
+      sessionId={userData!.sessionId}
       userId={userData!.userId}
       email={userData!.email}
       mobileNumber={userData!.mobileNumber}

@@ -19,7 +19,6 @@ export class WorkflowConfigManager {
   createConfiguration(
     name: string,
     steps: WorkflowSteps,
-    description?: string,
     formId?: string,
     createdBy?: string
   ): WorkflowConfiguration {
@@ -28,7 +27,6 @@ export class WorkflowConfigManager {
     const configuration: WorkflowConfiguration = {
       configId,
       name,
-      description,
       steps,
       formId,
       createdAt: new Date(),

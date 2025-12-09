@@ -359,7 +359,6 @@ export interface ErrorResponse {
 export interface WorkflowConfiguration {
   configId: string;
   name: string;
-  description?: string;
   steps: WorkflowSteps;
   formId?: string;
   createdAt: Date;
@@ -381,7 +380,6 @@ export interface WorkflowSteps {
 
 export interface CreateWorkflowRequest {
   name: string;
-  description?: string;
   steps: WorkflowSteps;
   formId?: string;
   createdBy?: string;

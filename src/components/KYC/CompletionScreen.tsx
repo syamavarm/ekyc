@@ -35,6 +35,7 @@ const CompletionScreen: React.FC<CompletionScreenProps> = ({
   }, []);
 
   // Call the complete API to get verification results based on workflow config
+  // Report is automatically saved on the server
   const completeAndLoadResults = async () => {
     try {
       setLoadingStatus(true);
@@ -52,10 +53,6 @@ const CompletionScreen: React.FC<CompletionScreenProps> = ({
     } finally {
       setLoadingStatus(false);
     }
-  };
-
-  const handleDownloadReport = (format: 'pdf' | 'txt') => {
-    kycApiService.downloadReport(sessionId, format);
   };
 
   if (loadingStatus) {
@@ -154,24 +151,10 @@ const CompletionScreen: React.FC<CompletionScreenProps> = ({
         </div>
 
         <div className="session-details">
-          <h3>Session Details</h3>
           <p><strong>Session ID:</strong> {sessionId}</p>
-          <p><strong>Status:</strong> {completionResult?.status}</p>
         </div>
 
         <div className="completion-actions">
-          <button
-            className="btn-secondary"
-            onClick={() => handleDownloadReport('pdf')}
-          >
-            📄 Download PDF Report
-          </button>
-          <button
-            className="btn-secondary"
-            onClick={() => handleDownloadReport('txt')}
-          >
-            📝 Download Text Report
-          </button>
           <button
             className="btn-primary"
             onClick={onComplete}

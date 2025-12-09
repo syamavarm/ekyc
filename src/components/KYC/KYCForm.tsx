@@ -1,24 +1,30 @@
 import React, { useState } from 'react';
 import './KYCForm.css';
+import kycApiService from '../../services/kycApiService';
 
 interface KYCFormData {
   mobileNumber: string;
   otp: string;
+  sessionId: string;
+  userId: string;
+  email?: string;
 }
 
 interface KYCFormProps {
   onStartKYC: (data: KYCFormData) => void;
+  workflowConfigId?: string;
 }
 
-const KYCForm: React.FC<KYCFormProps> = ({ onStartKYC }) => {
+const KYCForm: React.FC<KYCFormProps> = ({ onStartKYC, workflowConfigId }) => {
   const [formData, setFormData] = useState({
     mobileNumber: '',
     otp: '',
   });
   const [error, setError] = useState('');
   const [otpSent, setOtpSent] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validate OTP - check if it matches last 4 digits of mobile number
@@ -29,7 +35,28 @@ const KYCForm: React.FC<KYCFormProps> = ({ onStartKYC }) => {
     }
     
     setError('');
-    onStartKYC(formData);
+    setIsLoading(true);
+    
+    try {
+      // Create user data
+      const userId = `user-${Date.now()}`;
+      const email = `${formData.mobileNumber}@example.com`;
+      
+      // Create session at backend after OTP verification
+      const response = await kycApiService.startSession(userId, email, formData.mobileNumber, workflowConfigId);
+      
+      onStartKYC({
+        ...formData,
+        sessionId: response.sessionId,
+        userId,
+        email,
+      });
+    } catch (err: any) {
+      console.error('Failed to create session:', err);
+      setError('Failed to start KYC session. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -113,9 +140,9 @@ const KYCForm: React.FC<KYCFormProps> = ({ onStartKYC }) => {
           <button 
             type="submit" 
             className="submit-btn"
-            disabled={!otpSent || formData.otp.length !== 4}
+            disabled={!otpSent || formData.otp.length !== 4 || isLoading}
           >
-            Start Video Verification
+            {isLoading ? 'Starting...' : 'Start Video Verification'}
           </button>
         </form>
 

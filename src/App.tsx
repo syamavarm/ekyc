@@ -12,6 +12,7 @@ interface UserData {
   userId: string;
   email?: string;
   mobileNumber: string;
+  sessionId: string;
 }
 
 function App() {
@@ -55,12 +56,13 @@ function App() {
     };
   }, []);
 
-  const handleStartKYC = (formData: { mobileNumber: string; otp: string }) => {
-    // Create user data from form
+  const handleStartKYC = (formData: { mobileNumber: string; otp: string; sessionId: string; userId: string; email?: string }) => {
+    // Use data from form (session already created after OTP verification)
     const user: UserData = {
-      userId: `user-${Date.now()}`,
-      email: `${formData.mobileNumber}@example.com`,
+      userId: formData.userId,
+      email: formData.email,
       mobileNumber: formData.mobileNumber,
+      sessionId: formData.sessionId,
     };
     
     setUserData(user);
@@ -105,6 +107,7 @@ function App() {
       
       {appState === 'workflow' && userData && (
         <EKYCWorkflow
+          sessionId={userData.sessionId}
           userId={userData.userId}
           email={userData.email}
           mobileNumber={userData.mobileNumber}
@@ -120,9 +123,6 @@ function App() {
             <h1>KYC Verification Complete!</h1>
             <p>Your identity has been successfully verified.</p>
             <p className="session-id">Session ID: {completedSessionId}</p>
-            <button className="btn-primary" onClick={handleStartNew}>
-              Start New Verification
-            </button>
           </div>
         </div>
       )}
