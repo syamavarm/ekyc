@@ -390,24 +390,6 @@ class KYCApiService {
   }
 
   /**
-   * Capture video frame from video element
-   */
-  captureFrame(videoElement: HTMLVideoElement): Blob | null {
-    const canvas = document.createElement('canvas');
-    canvas.width = videoElement.videoWidth;
-    canvas.height = videoElement.videoHeight;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    
-    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-    
-    return new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.95);
-    }) as any;
-  }
-
-  /**
    * Get user's geolocation
    */
   async getUserLocation(): Promise<LocationData> {

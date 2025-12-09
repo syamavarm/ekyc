@@ -144,22 +144,6 @@ export class WebSocketService {
   }
 
   /**
-   * Send audio data
-   */
-  sendAudio(audioBase64: string): void {
-    if (!this.sessionId) {
-      console.error('No active session');
-      return;
-    }
-
-    this.send({
-      type: 'audio',
-      sessionId: this.sessionId,
-      data: { audio: audioBase64 },
-    });
-  }
-
-  /**
    * Update state
    */
   updateState(state: ConversationState): void {
@@ -219,13 +203,6 @@ export class WebSocketService {
     this.messageCallbacks = [];
     this.stateCallbacks = [];
     this.audioCallbacks = [];
-  }
-
-  /**
-   * Check if connected
-   */
-  isConnected(): boolean {
-    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
 }
 
