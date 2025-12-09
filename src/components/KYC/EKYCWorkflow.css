@@ -383,17 +383,86 @@
   color: #666;
 }
 
-.liveness-instruction-large {
-  font-size: 2rem;
+/* Liveness Check - Countdown Display */
+.countdown-display {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.countdown-number {
+  font-size: 6rem;
   font-weight: bold;
   color: #667eea;
-  padding: 60px 20px;
-  animation: pulse 1.5s ease-in-out infinite;
+  line-height: 1;
+  animation: countdownPulse 0.8s ease-in-out infinite;
+}
+
+.countdown-instruction {
+  font-size: 1.5rem;
+  color: #333;
+  margin: 20px 0 10px;
+  font-weight: 500;
+}
+
+.countdown-hint {
+  font-size: 1rem;
+  color: #888;
+  font-style: italic;
+}
+
+@keyframes countdownPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+/* Liveness Check - Action Display */
+.liveness-instruction-large {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.action-now {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #4caf50;
+  margin-bottom: 20px;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 1rem;
+  color: #f44336;
+  font-weight: 500;
+}
+
+.recording-dot {
+  width: 12px;
+  height: 12px;
+  background: #f44336;
+  border-radius: 50%;
+  animation: recordingBlink 1s ease-in-out infinite;
+}
+
+@keyframes recordingBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.8; transform: scale(1.05); }
+  50% { opacity: 0.9; transform: scale(1.02); }
+}
+
+/* Proceeding message after failure */
+.proceeding-message {
+  font-size: 0.9rem;
+  color: #888;
+  font-style: italic;
+  margin-top: 15px;
 }
 
 .liveness-checks {

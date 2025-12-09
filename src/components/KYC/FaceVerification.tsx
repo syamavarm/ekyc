@@ -187,26 +187,53 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
     performLivenessChecks();
   };
 
+  const [countdown, setCountdown] = useState<number | null>(null);
+
   const performLivenessChecks = async () => {
     const instructions = [
-      'Please blink your eyes',
-      'Turn your head slowly to the left',
-      'Turn your head slowly to the right',
-      'Please smile',
-      'Look straight at the camera',
+      { text: 'Please blink your eyes naturally', duration: 3000, captureCount: 6, readTime: 1500 },
+      { text: 'Turn your head slowly to the left', duration: 2500, captureCount: 5, readTime: 1500 },
+      { text: 'Turn your head slowly to the right', duration: 2500, captureCount: 5, readTime: 1500 },
+      { text: 'Please smile', duration: 2000, captureCount: 4, readTime: 1200 },
+      { text: 'Look straight at the camera', duration: 1500, captureCount: 3, readTime: 1000 },
     ];
 
     const frames: Blob[] = [];
 
     for (let i = 0; i < instructions.length; i++) {
-      setCurrentInstruction(instructions[i]);
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Capture frame
-      const frame = await captureFaceImage();
-      if (frame) {
-        frames.push(frame);
+      const instruction = instructions[i];
+      
+      // Show instruction with "Get Ready" countdown
+      setCurrentInstruction(`${instruction.text}`);
+      setCountdown(3);
+      await new Promise(resolve => setTimeout(resolve, 800));
+      setCountdown(2);
+      await new Promise(resolve => setTimeout(resolve, 800));
+      setCountdown(1);
+      await new Promise(resolve => setTimeout(resolve, 800));
+      setCountdown(null);
+      
+      // Now show "Do it now!" and start capturing
+      setCurrentInstruction(`${instruction.text} - NOW!`);
+      
+      // Capture multiple frames during each action to detect movement
+      const captureInterval = instruction.duration / instruction.captureCount;
+      
+      for (let j = 0; j < instruction.captureCount; j++) {
+        // Capture frame
+        const frame = await captureFaceImage();
+        if (frame) {
+          frames.push(frame);
+        }
+        
+        // Wait before next capture (except for last frame)
+        if (j < instruction.captureCount - 1) {
+          await new Promise(resolve => setTimeout(resolve, captureInterval));
+        }
       }
+      
+      // Brief pause between instructions
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     setCapturedFrames(frames);
@@ -225,13 +252,23 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
           onComplete();
         }, 2000);
       } else {
-        setError('Liveness check failed. Please try again.');
+        setError('Liveness check could not be verified.');
         setLivenessStatus('failed');
+        // Auto-proceed after showing result
+        setTimeout(() => {
+          console.log('[FaceVerification] Liveness check failed, proceeding to complete...');
+          onComplete();
+        }, 3000);
       }
     } catch (err: any) {
       console.error('Liveness check error:', err);
       setError(err.message || 'Failed to perform liveness check');
       setLivenessStatus('failed');
+      // Auto-proceed after showing error
+      setTimeout(() => {
+        console.log('[FaceVerification] Liveness check error, proceeding to complete...');
+        onComplete();
+      }, 3000);
     }
   };
 
@@ -326,7 +363,7 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
                     <li>Smile</li>
                     <li>Look at the camera</li>
                   </ul>
-                  <p><strong>This will take about 10 seconds.</strong></p>
+                  <p><strong>This will take about 25-30 seconds.</strong></p>
                 </div>
                 <button className="btn-primary" onClick={startLivenessCheck}>
                   Start Liveness Check
@@ -336,9 +373,21 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
 
             {livenessStatus === 'capturing' && (
               <div className="status-message">
-                <div className="liveness-instruction-large">
-                  {currentInstruction}
-                </div>
+                {countdown !== null ? (
+                  <div className="countdown-display">
+                    <div className="countdown-number">{countdown}</div>
+                    <div className="countdown-instruction">{currentInstruction}</div>
+                    <p className="countdown-hint">Get ready...</p>
+                  </div>
+                ) : (
+                  <div className="liveness-instruction-large">
+                    <div className="action-now">{currentInstruction}</div>
+                    <div className="recording-indicator">
+                      <span className="recording-dot"></span>
+                      Recording...
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -368,15 +417,11 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
             )}
 
             {livenessStatus === 'failed' && (
-              <>
-                <div className="status-message error">
-                  <span className="icon">⚠️</span>
-                  <p>{error}</p>
-                </div>
-                <button className="btn-primary" onClick={startLivenessCheck}>
-                  Try Again
-                </button>
-              </>
+              <div className="status-message error">
+                <span className="icon">⚠️</span>
+                <p>{error}</p>
+                <p className="proceeding-message">Proceeding to next step...</p>
+              </div>
             )}
           </>
         )}

@@ -66,8 +66,7 @@ const faceVerificationService = new FaceVerificationService({
   azureKey: process.env.AZURE_FACE_KEY,
 });
 const livenessCheckService = new LivenessCheckService({
-  azureEndpoint: process.env.AZURE_FACE_ENDPOINT,
-  azureKey: process.env.AZURE_FACE_KEY,
+  confidenceThreshold: 0.8,
 });
 const reportService = new ReportGenerationService();
 const questionnaireService = new QuestionnaireService();
@@ -508,10 +507,12 @@ router.post('/face/verify', upload.single('faceImage'), async (req: Request, res
  * POST /kyc/liveness-check
  * Run real-time liveness checks
  */
-router.post('/liveness-check', upload.array('frames', 10), async (req: Request, res: Response) => {
+router.post('/liveness-check', upload.array('frames', 30), async (req: Request, res: Response) => {
   try {
     const { sessionId, checkType }: LivenessCheckRequest = req.body;
     const frames = req.files as Express.Multer.File[];
+    
+    console.log(`[KYC Routes] Liveness check request - sessionId: ${sessionId}, frames received: ${frames?.length || 0}`);
     
     if (!sessionId) {
       return res.status(400).json({
@@ -531,7 +532,9 @@ router.post('/liveness-check', upload.array('frames', 10), async (req: Request, 
     }
     
     // Extract frame buffers
-    const frameBuffers = frames?.map(f => f.buffer);
+    const frameBuffers = frames?.map(f => f.buffer) || [];
+    
+    console.log(`[KYC Routes] Processing ${frameBuffers.length} frame buffers for liveness check`);
     
     // Perform liveness check
     const livenessResult = await livenessCheckService.performLivenessCheck(

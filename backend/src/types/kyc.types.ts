@@ -172,6 +172,7 @@ export interface LivenessCheck {
   result: boolean;
   confidence: number;
   timestamp: Date;
+  details?: string; // Additional details about the check result
 }
 
 export type LivenessCheckType = 
