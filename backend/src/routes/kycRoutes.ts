@@ -941,6 +941,75 @@ router.get('/questionnaire/set/:name', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /kyc/location/compare
+ * Compare user's GPS location with document address
+ * If allowedRadiusKm is provided, uses radius-based comparison
+ * If not provided, falls back to country-based comparison
+ */
+router.post('/location/compare', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, latitude, longitude, documentAddress, allowedRadiusKm } = req.body;
+    
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing sessionId',
+        message: 'sessionId is required',
+      } as ErrorResponse);
+    }
+    
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing coordinates',
+        message: 'latitude and longitude are required and must be numbers',
+      } as ErrorResponse);
+    }
+    
+    if (!documentAddress) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing documentAddress',
+        message: 'documentAddress is required',
+      } as ErrorResponse);
+    }
+    
+    const session = sessionManager.getSession(sessionId);
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found',
+        message: `Session ${sessionId} not found`,
+      } as ErrorResponse);
+    }
+    
+    // Perform location comparison
+    // If allowedRadiusKm is not provided or <= 0, it will use country-based comparison
+    const comparisonResult = await locationService.compareLocationWithAddress(
+      latitude,
+      longitude,
+      documentAddress,
+      allowedRadiusKm
+    );
+    
+    console.log(`[KYC Routes] Location comparison for session ${sessionId} (type: ${comparisonResult.verificationType}):`, comparisonResult);
+    
+    res.status(200).json({
+      success: true,
+      ...comparisonResult,
+      documentAddress,
+    });
+  } catch (error) {
+    console.error('[KYC Routes] Error comparing location:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: 'Failed to compare location with document address',
+    } as ErrorResponse);
+  }
+});
+
 export default router;
 export { 
   sessionManager, 

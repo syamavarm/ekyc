@@ -26,6 +26,19 @@ export interface LocationData {
   ip?: {
     address: string;
   };
+  // Location comparison with document address
+  addressComparison?: {
+    documentAddress?: string;
+    distanceKm?: number;
+    allowedRadiusKm?: number;
+    withinRadius?: boolean;
+    userCountry?: string;
+    documentCountry?: string;
+    sameCountry?: boolean;
+    verificationType?: 'radius' | 'country';
+    verified?: boolean;
+    message?: string;
+  };
 }
 
 export interface DocumentUploadResponse {
@@ -421,6 +434,76 @@ class KYCApiService {
         }
       );
     });
+  }
+
+  /**
+   * Compare user's location with document address
+   * If allowedRadiusKm is provided, uses radius-based comparison
+   * If not provided, uses country-based comparison
+   */
+  async compareLocationWithAddress(
+    sessionId: string,
+    latitude: number,
+    longitude: number,
+    documentAddress: string,
+    allowedRadiusKm?: number
+  ): Promise<{
+    documentAddress?: string;
+    // Radius-based comparison
+    distanceKm?: number;
+    allowedRadiusKm?: number;
+    withinRadius?: boolean;
+    // Country-based comparison
+    userCountry?: string;
+    documentCountry?: string;
+    sameCountry?: boolean;
+    // Verification type and result
+    verificationType?: 'radius' | 'country';
+    verified?: boolean;
+    message?: string;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/kyc/location/compare`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sessionId,
+        latitude,
+        longitude,
+        documentAddress,
+        allowedRadiusKm,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to compare location with address');
+    }
+
+    const result = await response.json();
+    
+    // Handle both radius-based and country-based responses
+    if (result.verificationType === 'country') {
+      return {
+        documentAddress: result.documentAddress,
+        userCountry: result.userCountry,
+        documentCountry: result.documentCountry,
+        sameCountry: result.verified,
+        verificationType: 'country',
+        verified: result.verified,
+        message: result.message,
+      };
+    }
+    
+    return {
+      documentAddress: result.documentAddress,
+      distanceKm: result.distanceKm,
+      allowedRadiusKm: result.allowedRadiusKm,
+      withinRadius: result.verified,
+      verificationType: 'radius',
+      verified: result.verified,
+      message: result.message,
+    };
   }
 }
 

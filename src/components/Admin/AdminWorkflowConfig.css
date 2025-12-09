@@ -176,6 +176,86 @@
   margin: 0;
 }
 
+/* Step Configuration (nested config within step cards) */
+.step-config {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.config-label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #d4d4d8;
+  margin-bottom: 0.5rem;
+}
+
+.radius-input-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.radius-input {
+  width: 100px;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.radius-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.radius-input::-webkit-inner-spin-button,
+.radius-input::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+.radius-unit {
+  color: #a1a1aa;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.btn-clear-radius {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: none;
+  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.btn-clear-radius:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+.config-hint {
+  font-size: 0.8rem;
+  color: #71717a;
+  margin-top: 0.5rem;
+  line-height: 1.4;
+}
+
+.radius-input::placeholder {
+  color: #71717a;
+  font-style: italic;
+}
+
 /* Toggle Switch */
 .toggle-switch {
   position: relative;

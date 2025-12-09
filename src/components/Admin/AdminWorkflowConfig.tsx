@@ -7,6 +7,7 @@ interface WorkflowSteps {
   faceMatch: boolean;
   livenessCheck: boolean;
   questionnaire: boolean;
+  locationRadiusKm?: number;
 }
 
 interface QuestionSet {
@@ -35,6 +36,7 @@ const AdminWorkflowConfig: React.FC = () => {
     faceMatch: true,
     livenessCheck: true,
     questionnaire: true,
+    locationRadiusKm: undefined, // Default: no radius = country comparison
   });
   const [selectedForm, setSelectedForm] = useState<string>('');
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
@@ -171,6 +173,7 @@ const AdminWorkflowConfig: React.FC = () => {
       faceMatch: true,
       livenessCheck: true,
       questionnaire: true,
+      locationRadiusKm: undefined, // Default: no radius = country comparison
     });
     setSelectedForm(questionSets.find(qs => qs.id === 'basic')?.id || '');
     setGeneratedLink('');
@@ -272,24 +275,6 @@ const AdminWorkflowConfig: React.FC = () => {
             <div className="steps-grid">
               <div className="step-card">
                 <div className="step-header">
-                  <div className="step-icon">📍</div>
-                  <div className="step-info">
-                    <h3>Location Capture</h3>
-                    <p>Capture user's GPS and IP-based location</p>
-                  </div>
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={steps.locationCapture}
-                      onChange={() => handleStepToggle('locationCapture')}
-                    />
-                    <span className="toggle-slider"></span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="step-card">
-                <div className="step-header">
                   <div className="step-icon">📄</div>
                   <div className="step-info">
                     <h3>Document OCR</h3>
@@ -304,6 +289,65 @@ const AdminWorkflowConfig: React.FC = () => {
                     <span className="toggle-slider"></span>
                   </label>
                 </div>
+              </div>
+
+              <div className="step-card">
+                <div className="step-header">
+                  <div className="step-icon">📍</div>
+                  <div className="step-info">
+                    <h3>Location Capture</h3>
+                    <p>Capture user's GPS and compare with document address</p>
+                  </div>
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={steps.locationCapture}
+                      onChange={() => handleStepToggle('locationCapture')}
+                    />
+                    <span className="toggle-slider"></span>
+                  </label>
+                </div>
+                {steps.locationCapture && steps.documentOCR && (
+                  <div className="step-config">
+                    <label htmlFor="locationRadius" className="config-label">
+                      📏 Location Comparison Radius (km) - Optional
+                    </label>
+                    <div className="radius-input-group">
+                      <input
+                        id="locationRadius"
+                        type="number"
+                        min="0"
+                        max="500"
+                        value={steps.locationRadiusKm || ''}
+                        placeholder="Not set"
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setSteps(prev => ({
+                            ...prev,
+                            locationRadiusKm: value === '' ? undefined : Math.max(0, Math.min(500, parseInt(value) || 0))
+                          }));
+                        }}
+                        className="radius-input"
+                      />
+                      <span className="radius-unit">km</span>
+                      {steps.locationRadiusKm && steps.locationRadiusKm > 0 && (
+                        <button
+                          type="button"
+                          className="btn-clear-radius"
+                          onClick={() => setSteps(prev => ({ ...prev, locationRadiusKm: undefined }))}
+                          title="Clear radius (use country comparison instead)"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    <p className="config-hint">
+                      {steps.locationRadiusKm && steps.locationRadiusKm > 0
+                        ? `User's GPS must be within ${steps.locationRadiusKm} km of their document address`
+                        : '🌍 No radius set: User must be in the same country as their document address'}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="step-card">

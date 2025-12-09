@@ -83,6 +83,24 @@ export interface LocationData {
     timestamp: Date;
   };
   capturedAt: Date;
+  // Location comparison with document address
+  addressComparison?: {
+    documentAddress?: string;
+    documentCoordinates?: {
+      latitude: number;
+      longitude: number;
+    };
+    // Radius-based comparison
+    distanceKm?: number;
+    allowedRadiusKm?: number;
+    withinRadius?: boolean;
+    // Country-based comparison (when radius not defined)
+    userCountry?: string;
+    documentCountry?: string;
+    sameCountry?: boolean;
+    // Type of verification
+    verificationType?: 'radius' | 'country';
+  };
 }
 
 export interface DocumentData {
@@ -355,8 +373,10 @@ export interface WorkflowSteps {
   faceMatch: boolean;
   livenessCheck: boolean;
   questionnaire: boolean;
+  // Location verification radius in kilometers (compare user's GPS with document address)
+  locationRadiusKm?: number;
   // Extensible for future steps
-  [key: string]: boolean;
+  [key: string]: boolean | number | undefined;
 }
 
 export interface CreateWorkflowRequest {
@@ -365,6 +385,30 @@ export interface CreateWorkflowRequest {
   steps: WorkflowSteps;
   formId?: string;
   createdBy?: string;
+}
+
+export interface LocationVerificationResult {
+  verified: boolean;
+  userCoordinates?: {
+    latitude: number;
+    longitude: number;
+  };
+  documentCoordinates?: {
+    latitude: number;
+    longitude: number;
+    geocodedAddress?: string;
+  };
+  // Radius-based verification
+  distanceKm?: number;
+  allowedRadiusKm?: number;
+  // Country-based verification (when radius not defined)
+  userCountry?: string;
+  userCountryCode?: string;
+  documentCountry?: string;
+  documentCountryCode?: string;
+  // Type of verification performed
+  verificationType?: 'radius' | 'country';
+  message: string;
 }
 
 export interface CreateWorkflowResponse {

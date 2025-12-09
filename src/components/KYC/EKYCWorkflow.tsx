@@ -28,6 +28,7 @@ interface WorkflowSteps {
   faceMatch: boolean;
   livenessCheck: boolean;
   questionnaire: boolean;
+  locationRadiusKm?: number;
 }
 
 interface EKYCWorkflowProps {
@@ -70,17 +71,14 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Calculate enabled steps based on workflow configuration
+  // Location capture now comes AFTER document verification to enable address comparison
   const getEnabledSteps = (): WorkflowStep[] => {
     const steps: WorkflowStep[] = ['consent']; // Consent is always required
     
     if (!workflowSteps) {
       // If no workflow config, return all steps (default flow)
-      return ['consent', 'location', 'video_call', 'document', 'face', 'questionnaire', 'completion'];
-    }
-    
-    // Add location if enabled
-    if (workflowSteps.locationCapture) {
-      steps.push('location');
+      // Location now comes after document verification
+      return ['consent', 'video_call', 'document', 'location', 'face', 'questionnaire', 'completion'];
     }
     
     // Determine if face step can actually do something useful:
@@ -96,9 +94,15 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       steps.push('video_call');
     }
     
-    // Add document if enabled
+    // Add document if enabled (before location now)
     if (workflowSteps.documentOCR) {
       steps.push('document');
+    }
+    
+    // Add location AFTER document if enabled
+    // This allows us to compare user's location with document address
+    if (workflowSteps.locationCapture) {
+      steps.push('location');
     }
     
     // Add face verification step only if it can do something useful
@@ -365,6 +369,8 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
             sessionId={state.sessionId}
             onLocationCaptured={handleLocationCaptured}
             loading={loading}
+            documentAddress={state.ocrData?.extractedData?.address}
+            locationRadiusKm={workflowSteps?.locationRadiusKm}
           />
         );
 
