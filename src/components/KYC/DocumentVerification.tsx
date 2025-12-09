@@ -189,6 +189,7 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
               <h3>Extracted Information:</h3>
               <p><strong>Name:</strong> {ocrResults.extractedData.fullName}</p>
               <p><strong>Date of Birth:</strong> {ocrResults.extractedData.dateOfBirth}</p>
+              <p><strong>Address:</strong> {ocrResults.extractedData.address}</p>
               <p><strong>Document Number:</strong> {ocrResults.extractedData.documentNumber}</p>
               <p><strong>Confidence:</strong> {(ocrResults.confidence * 100).toFixed(1)}%</p>
             </div>

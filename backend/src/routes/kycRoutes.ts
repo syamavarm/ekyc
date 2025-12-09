@@ -1068,6 +1068,9 @@ router.post('/location/compare', async (req: Request, res: Response) => {
     
     console.log(`[KYC Routes] Location comparison for session ${sessionId} (type: ${comparisonResult.verificationType}):`, comparisonResult);
     
+    // Update the session's locationVerified based on the comparison result
+    sessionManager.updateLocationVerified(sessionId, comparisonResult.verified);
+    
     res.status(200).json({
       success: true,
       ...comparisonResult,

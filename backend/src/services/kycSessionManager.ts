@@ -141,7 +141,8 @@ export class KYCSessionManager {
     if (!session) return false;
     
     session.location = location;
-    session.verificationResults.locationVerified = true;
+    // Note: locationVerified is NOT set here - it will be set by the location comparison endpoint
+    // based on whether the user's location matches the document address
     
     if (session.status === 'consent_given' || session.status === 'initiated') {
       session.status = 'location_captured';
@@ -150,6 +151,23 @@ export class KYCSessionManager {
     session.updatedAt = new Date();
     
     console.log(`[KYCSessionManager] Location updated for session: ${sessionId}`);
+    return true;
+  }
+
+  /**
+   * Update location verification result
+   */
+  updateLocationVerified(
+    sessionId: string,
+    verified: boolean
+  ): boolean {
+    const session = this.sessions.get(sessionId);
+    if (!session) return false;
+    
+    session.verificationResults.locationVerified = verified;
+    session.updatedAt = new Date();
+    
+    console.log(`[KYCSessionManager] Location verified updated for session ${sessionId}: ${verified}`);
     return true;
   }
 

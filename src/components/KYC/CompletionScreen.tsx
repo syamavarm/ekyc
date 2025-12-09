@@ -69,9 +69,24 @@ const CompletionScreen: React.FC<CompletionScreenProps> = ({
   if (error) {
     return (
       <div className="completion-screen">
-        <div className="status-message error">
-          <span className="icon">⚠️</span>
-          <p>{error}</p>
+        <div className="completion-card">
+          <div className="warning-icon">⚠️</div>
+          <h2>KYC Verification Error</h2>
+          <p className="warning-message">{error}</p>
+          
+          <div className="session-details">
+            <p><strong>Session ID:</strong> {sessionId}</p>
+          </div>
+
+          <div className="completion-actions">
+            <button
+              className="btn-primary"
+              onClick={onComplete}
+              disabled={loading}
+            >
+              {loading ? 'Finalizing...' : 'Finish'}
+            </button>
+          </div>
         </div>
       </div>
     );

@@ -335,16 +335,18 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   const handleWorkflowComplete = async () => {
     try {
       setLoading(true);
-      const result = await kycApiService.completeKYC(state.sessionId);
-      if (result.success && onComplete) {
+      // Call complete API one more time to ensure status is finalized
+      await kycApiService.completeKYC(state.sessionId);
+      // Always call onComplete - user should be able to finish regardless of KYC result
+      if (onComplete) {
         onComplete(state.sessionId);
       }
     } catch (error) {
       console.error('Failed to complete KYC:', error);
-      setState(prev => ({
-        ...prev,
-        error: 'Failed to complete KYC. Please contact support.',
-      }));
+      // Even if the API call fails, allow user to finish the workflow
+      if (onComplete) {
+        onComplete(state.sessionId);
+      }
     } finally {
       setLoading(false);
     }

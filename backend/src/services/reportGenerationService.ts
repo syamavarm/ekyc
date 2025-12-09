@@ -217,11 +217,16 @@ export class ReportGenerationService {
         lines.push('');
         lines.push('Extracted Data:');
         const data = session.document.ocrResults.extractedData;
-        lines.push(`  Name: ${data.fullName || 'N/A'}`);
+        lines.push(`  First Name: ${data.firstName || 'N/A'}`);
+        lines.push(`  Last Name: ${data.lastName || 'N/A'}`);
+        lines.push(`  Full Name: ${data.fullName || 'N/A'}`);
         lines.push(`  Date of Birth: ${data.dateOfBirth || 'N/A'}`);
+        lines.push(`  Gender: ${data.gender || 'N/A'}`);
+        lines.push(`  Address: ${data.address ? data.address.replace(/\n/g, ', ') : 'N/A'}`);
         lines.push(`  Document Number: ${data.documentNumber || 'N/A'}`);
-        lines.push(`  Nationality: ${data.nationality || 'N/A'}`);
+        lines.push(`  Issue Date: ${data.issueDate || 'N/A'}`);
         lines.push(`  Expiry Date: ${data.expiryDate || 'N/A'}`);
+        lines.push(`  Nationality: ${data.nationality || 'N/A'}`);
         lines.push(`  OCR Confidence: ${(session.document.ocrResults.confidence * 100).toFixed(2)}%`);
       }
       lines.push('');

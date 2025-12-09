@@ -702,6 +702,12 @@ const AdminWorkflowConfig: React.FC = () => {
                           <span className="ocr-label">DOB:</span>
                           <span>{session.document.ocrResults.extractedData.dateOfBirth || 'N/A'}</span>
                         </div>
+                        {session.document.ocrResults.extractedData.address && (
+                          <div className="ocr-row">
+                            <span className="ocr-label">Address:</span>
+                            <span>{session.document.ocrResults.extractedData.address.replace(/\n/g, ', ')}</span>
+                          </div>
+                        )}
                         <div className="ocr-row">
                           <span className="ocr-label">Doc #:</span>
                           <span>{session.document.ocrResults.extractedData.documentNumber || 'N/A'}</span>
