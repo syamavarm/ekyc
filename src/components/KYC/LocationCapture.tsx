@@ -23,6 +23,7 @@ interface AddressComparison {
   verificationType?: 'radius' | 'country';
   verified?: boolean;
   message?: string;
+  locationSource?: 'gps' | 'ip';
 }
 
 const LocationCapture: React.FC<LocationCaptureProps> = ({
@@ -47,47 +48,55 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
     setError('');
     setAddressComparison(null);
 
+    let gpsLatitude: number | undefined;
+    let gpsLongitude: number | undefined;
+    let locationData: any = {};
+
+    // Try to get GPS coordinates
     try {
-      const locationData = await kycApiService.getUserLocation();
-      setLocation(locationData);
-      
-      // If document address is available and GPS is captured, compare with user's location
-      // locationRadiusKm can be undefined (for country-based comparison) or a number (for radius-based)
-      if (documentAddress && locationData.gps) {
-        setStatus('comparing');
-        try {
-          const comparison = await kycApiService.compareLocationWithAddress(
-            sessionId,
-            locationData.gps.latitude,
-            locationData.gps.longitude,
-            documentAddress,
-            locationRadiusKm // Can be undefined for country-based comparison
-          );
-          setAddressComparison(comparison);
-          // Update location data with comparison results
-          locationData.addressComparison = comparison;
-        } catch (comparisonErr) {
-          console.warn('Address comparison failed:', comparisonErr);
-          // Continue without comparison - don't fail the whole step
-        }
+      const gpsResult = await kycApiService.getUserLocation();
+      if (gpsResult.gps) {
+        gpsLatitude = gpsResult.gps.latitude;
+        gpsLongitude = gpsResult.gps.longitude;
+        locationData = gpsResult;
+        setLocation(gpsResult);
       }
-      
-      setStatus('captured');
     } catch (err: any) {
-      console.error('Location capture error:', err);
-      setError(err.message || 'Failed to capture location');
-      setStatus('error');
+      console.warn('GPS location error:', err.message);
+      // GPS failed, will use IP-based location via backend
     }
-  };
 
-  const handleContinue = () => {
-    if (location) {
-      onLocationCaptured(location);
+    // Always perform comparison if document address is available
+    // Backend will use GPS coordinates if provided, otherwise use IP-based location
+    if (documentAddress) {
+      setStatus('comparing');
+      try {
+        const comparison = await kycApiService.compareLocationWithAddress(
+          sessionId,
+          gpsLatitude, // Can be undefined - backend will use IP
+          gpsLongitude, // Can be undefined - backend will use IP
+          documentAddress,
+          locationRadiusKm
+        );
+        setAddressComparison(comparison);
+        locationData.addressComparison = comparison;
+        locationData.locationSource = comparison.locationSource;
+        setLocation(locationData);
+        setStatus('captured');
+      } catch (comparisonErr: any) {
+        console.error('Address comparison failed:', comparisonErr);
+        setError(comparisonErr.message || 'Location verification failed');
+        setStatus('error');
+      }
+    } else {
+      // No document address to compare, just mark as captured
+      setStatus('captured');
     }
-  };
 
-  const handleRetry = () => {
-    captureLocation();
+    // Auto-advance to next step after showing results (success or error)
+    setTimeout(() => {
+      onLocationCaptured(locationData);
+    }, 2500);
   };
 
   return (
@@ -99,16 +108,25 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
         {(status === 'capturing' || status === 'comparing') && (
           <div className="status-message">
             <div className="spinner"></div>
-            <p>{status === 'capturing' ? 'Capturing your location...' : 'Comparing with document address...'}</p>
-            <small>{status === 'capturing' ? 'Please allow location access when prompted' : 'Verifying your proximity to document address'}</small>
+            <p>{status === 'capturing' ? 'Capturing your location...' : 'Verifying location against document address...'}</p>
+            <small>{status === 'capturing' ? 'Please allow location access when prompted' : 'Comparing your location with document address'}</small>
           </div>
         )}
 
-        {status === 'captured' && location && (
+        {status === 'captured' && (
           <div className="status-message success">
             <span className="icon">✓</span>
-            <p>Location captured successfully!</p>
-            {location.gps && (
+            <p>Location verification complete!</p>
+            <small>Proceeding to next step...</small>
+            
+            {/* Show location source */}
+            {addressComparison?.locationSource && (
+              <p className="location-source">
+                <strong>Location Source:</strong> {addressComparison.locationSource === 'gps' ? 'GPS' : 'IP Address'}
+              </p>
+            )}
+            
+            {location?.gps && (
               <div className="location-details">
                 <p>
                   <strong>Coordinates:</strong> {location.gps.latitude.toFixed(6)}, {location.gps.longitude.toFixed(6)}
@@ -117,11 +135,6 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
                   <strong>Accuracy:</strong> ±{Math.round(location.gps.accuracy)}m
                 </p>
               </div>
-            )}
-            {!location.gps && (
-              <p className="fallback-message">
-                Using IP-based location (GPS not available)
-              </p>
             )}
             
             {/* Address Comparison Results */}
@@ -191,30 +204,13 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
         {status === 'error' && (
           <div className="status-message error">
             <span className="icon">⚠️</span>
-            <p>Failed to capture location</p>
+            <p>Location verification failed</p>
             <small>{error}</small>
             <p className="fallback-message">
-              Don't worry, we'll use IP-based location instead.
+              Proceeding to next step...
             </p>
           </div>
         )}
-
-        <div className="location-actions">
-          {status === 'error' && (
-            <button className="btn-secondary" onClick={handleRetry}>
-              Retry
-            </button>
-          )}
-          {(status === 'captured' || status === 'error') && (
-            <button
-              className="btn-primary"
-              onClick={handleContinue}
-              disabled={loading}
-            >
-              {loading ? 'Processing...' : 'Continue'}
-            </button>
-          )}
-        </div>
       </div>
     </div>
   );

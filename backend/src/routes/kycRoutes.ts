@@ -1077,6 +1077,8 @@ router.get('/questionnaire/set/:name', async (req: Request, res: Response) => {
 /**
  * POST /kyc/location/compare
  * Compare user's GPS location with document address
+ * If latitude/longitude provided, uses GPS coordinates
+ * If not provided, uses IP-based location from request IP
  * If allowedRadiusKm is provided, uses radius-based comparison
  * If not provided, falls back to country-based comparison
  */
@@ -1089,14 +1091,6 @@ router.post('/location/compare', async (req: Request, res: Response) => {
         success: false,
         error: 'Missing sessionId',
         message: 'sessionId is required',
-      } as ErrorResponse);
-    }
-    
-    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing coordinates',
-        message: 'latitude and longitude are required and must be numbers',
       } as ErrorResponse);
     }
     
@@ -1117,23 +1111,68 @@ router.post('/location/compare', async (req: Request, res: Response) => {
       } as ErrorResponse);
     }
     
+    let lat: number;
+    let lon: number;
+    let locationSource: 'gps' | 'ip' = 'gps';
+    
+    // Check if GPS coordinates are provided
+    if (typeof latitude === 'number' && typeof longitude === 'number') {
+      lat = latitude;
+      lon = longitude;
+      locationSource = 'gps';
+      console.log(`[KYC Routes] Using GPS coordinates: ${lat}, ${lon}`);
+    } else {
+      // Fall back to IP-based location
+      console.log(`[KYC Routes] GPS not available, using IP-based location for IP: ${req.ip}`);
+      const ipLocation = await locationService.captureIPLocation(req.ip || '');
+      
+      const ipLat = ipLocation?.latitude;
+      const ipLon = ipLocation?.longitude;
+      
+      if (ipLat === undefined || ipLon === undefined) {
+        return res.status(400).json({
+          success: false,
+          error: 'Location unavailable',
+          message: 'Could not determine location from GPS or IP address',
+        } as ErrorResponse);
+      }
+      
+      lat = ipLat;
+      lon = ipLon;
+      locationSource = 'ip';
+      
+      // Store IP location in session
+      sessionManager.updateLocation(sessionId, {
+        ip: ipLocation,
+        capturedAt: new Date(),
+      });
+      
+      console.log(`[KYC Routes] Using IP-based coordinates: ${lat}, ${lon} (${ipLocation?.city}, ${ipLocation?.country})`);
+    }
+    
     // Perform location comparison
     // If allowedRadiusKm is not provided or <= 0, it will use country-based comparison
     const comparisonResult = await locationService.compareLocationWithAddress(
-      latitude,
-      longitude,
+      lat,
+      lon,
       documentAddress,
       allowedRadiusKm
     );
     
-    console.log(`[KYC Routes] Location comparison for session ${sessionId} (type: ${comparisonResult.verificationType}):`, comparisonResult);
+    // Add location source to result
+    const resultWithSource = {
+      ...comparisonResult,
+      locationSource,
+    };
+    
+    console.log(`[KYC Routes] Location comparison for session ${sessionId} (source: ${locationSource}, type: ${comparisonResult.verificationType}):`, resultWithSource);
     
     // Update the session's locationVerified based on the comparison result
     sessionManager.updateLocationVerified(sessionId, comparisonResult.verified);
     
     res.status(200).json({
       success: true,
-      ...comparisonResult,
+      ...resultWithSource,
       documentAddress,
     });
   } catch (error) {

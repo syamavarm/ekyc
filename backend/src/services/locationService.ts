@@ -60,54 +60,75 @@ export class LocationService {
   }
 
   /**
-   * Capture IP-based geolocation
-   * TODO: Integrate with actual IP geolocation service (e.g., MaxMind, IPStack, ipapi.co)
+   * Capture IP-based geolocation using ip-api.com (free, no API key required)
+   * Rate limit: 45 requests per minute for free tier
    */
   async captureIPLocation(ipAddress: string): Promise<LocationData['ip']> {
     try {
-      // Stub implementation - In production, integrate with actual service
-      // Example: const response = await axios.get(`https://ipapi.co/${ipAddress}/json/`);
-      
       console.log(`[LocationService] Capturing IP location for: ${ipAddress}`);
       
-      // For now, return mock data
-      // TODO: Replace with actual API call
-      const locationData: LocationData['ip'] = {
-        address: ipAddress,
-        country: 'United States',
-        region: 'California',
-        city: 'San Francisco',
-        timestamp: new Date(),
-      };
+      // Handle localhost/private IPs - they won't resolve to real locations
+      const isPrivateIP = this.isPrivateIP(ipAddress);
+      if (isPrivateIP) {
+        console.log(`[LocationService] Private/localhost IP detected, fetching public IP location`);
+      }
 
-      return locationData;
+      // Use ip-api.com - free service, no API key required
+      // For private IPs, empty string lets the API use the requester's public IP
+      const queryIP = isPrivateIP ? '' : ipAddress;
+      const apiUrl = queryIP 
+        ? `http://ip-api.com/json/${queryIP}?fields=status,message,country,regionName,city,lat,lon,query`
+        : `http://ip-api.com/json/?fields=status,message,country,regionName,city,lat,lon,query`;
+      
+      const response = await axios.get(apiUrl, { timeout: 5000 });
+      
+      if (response.data.status === 'success') {
+        const locationData: LocationData['ip'] = {
+          address: response.data.query || ipAddress,
+          country: response.data.country,
+          region: response.data.regionName,
+          city: response.data.city,
+          latitude: response.data.lat,
+          longitude: response.data.lon,
+          timestamp: new Date(),
+        };
+        
+        console.log(`[LocationService] IP location resolved: ${locationData.city}, ${locationData.region}, ${locationData.country} (${locationData.latitude}, ${locationData.longitude})`);
+        return locationData;
+      } else {
+        console.warn(`[LocationService] IP geolocation failed: ${response.data.message}`);
+        return {
+          address: ipAddress || 'unknown',
+          timestamp: new Date(),
+        };
+      }
     } catch (error) {
       console.error('[LocationService] Error capturing IP location:', error);
       
       // Return basic data on error
       return {
-        address: ipAddress,
+        address: ipAddress || 'unknown',
         timestamp: new Date(),
       };
     }
   }
 
   /**
-   * Get IP geolocation using external service (stub)
-   * TODO: Implement actual API integration
+   * Check if an IP address is private/localhost
    */
-  private async getIPGeolocation(ipAddress: string): Promise<any> {
-    // Example integration with ipapi.co (free tier)
-    // const response = await axios.get(`https://ipapi.co/${ipAddress}/json/`);
-    // return response.data;
-    
-    // For paid services like MaxMind or IPStack:
-    // const response = await axios.get(
-    //   `https://api.ipstack.com/${ipAddress}?access_key=${this.ipGeolocationApiKey}`
-    // );
-    // return response.data;
-    
-    return null;
+  private isPrivateIP(ip: string): boolean {
+    if (!ip) return true;
+    // Localhost
+    if (ip === '127.0.0.1' || ip === '::1' || ip === 'localhost') return true;
+    // Private ranges: 10.x.x.x, 172.16-31.x.x, 192.168.x.x
+    if (ip.startsWith('10.') || ip.startsWith('192.168.')) return true;
+    if (ip.startsWith('172.')) {
+      const secondOctet = parseInt(ip.split('.')[1], 10);
+      if (secondOctet >= 16 && secondOctet <= 31) return true;
+    }
+    // IPv6 private ranges
+    if (ip.startsWith('fe80:') || ip.startsWith('fc00:') || ip.startsWith('fd00:')) return true;
+    return false;
   }
 
   /**

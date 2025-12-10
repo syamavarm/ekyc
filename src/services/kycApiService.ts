@@ -432,13 +432,15 @@ class KYCApiService {
 
   /**
    * Compare user's location with document address
+   * If latitude/longitude provided, uses GPS coordinates
+   * If not provided, backend uses IP-based location
    * If allowedRadiusKm is provided, uses radius-based comparison
    * If not provided, uses country-based comparison
    */
   async compareLocationWithAddress(
     sessionId: string,
-    latitude: number,
-    longitude: number,
+    latitude: number | undefined,
+    longitude: number | undefined,
     documentAddress: string,
     allowedRadiusKm?: number
   ): Promise<{
@@ -455,6 +457,7 @@ class KYCApiService {
     verificationType?: 'radius' | 'country';
     verified?: boolean;
     message?: string;
+    locationSource?: 'gps' | 'ip';
   }> {
     const response = await fetch(`${API_BASE_URL}/kyc/location/compare`, {
       method: 'POST',
@@ -486,6 +489,7 @@ class KYCApiService {
         verificationType: 'country',
         verified: result.verified,
         message: result.message,
+        locationSource: result.locationSource,
       };
     }
     
@@ -497,6 +501,7 @@ class KYCApiService {
       verificationType: 'radius',
       verified: result.verified,
       message: result.message,
+      locationSource: result.locationSource,
     };
   }
 }
