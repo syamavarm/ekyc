@@ -1,11 +1,9 @@
+// .env is loaded via --env-file flag in package.json scripts
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
-import dotenv from 'dotenv';
 import kycRoutes from './routes/kycRoutes';
 import adminRoutes from './routes/adminRoutes';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
