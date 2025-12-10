@@ -183,19 +183,73 @@ export class LocationService {
   }
 
   /**
+   * Clean address for geocoding - remove newlines, normalize spaces
+   */
+  private cleanAddressForGeocoding(address: string): string {
+    return address
+      .replace(/\n/g, ', ')  // Replace newlines with commas
+      .replace(/\s+/g, ' ')  // Normalize whitespace
+      .replace(/,\s*,/g, ',') // Remove double commas
+      .replace(/,\s*$/g, '')  // Remove trailing comma
+      .trim();
+  }
+
+  /**
+   * Extract country from address text using known patterns
+   * Fallback when geocoding fails
+   */
+  private extractCountryFromAddressText(address: string): { country: string; countryCode: string } | null {
+    const addressLower = address.toLowerCase();
+    
+    // Indian states and territories
+    const indianStates = [
+      'andhra pradesh', 'arunachal pradesh', 'assam', 'bihar', 'chhattisgarh',
+      'goa', 'gujarat', 'haryana', 'himachal pradesh', 'jharkhand', 'karnataka',
+      'kerala', 'madhya pradesh', 'maharashtra', 'manipur', 'meghalaya', 'mizoram',
+      'nagaland', 'odisha', 'punjab', 'rajasthan', 'sikkim', 'tamil nadu',
+      'telangana', 'tripura', 'uttar pradesh', 'uttarakhand', 'west bengal',
+      'delhi', 'chandigarh', 'puducherry', 'jammu', 'kashmir', 'ladakh'
+    ];
+    
+    // Check for Indian states
+    for (const state of indianStates) {
+      if (addressLower.includes(state)) {
+        console.log(`[LocationService] Detected Indian state '${state}' in address`);
+        return { country: 'India', countryCode: 'IN' };
+      }
+    }
+    
+    // Check for Indian PIN code pattern (6 digits)
+    const pinCodeMatch = address.match(/\b[1-9][0-9]{5}\b/);
+    if (pinCodeMatch) {
+      console.log(`[LocationService] Detected Indian PIN code '${pinCodeMatch[0]}' in address`);
+      return { country: 'India', countryCode: 'IN' };
+    }
+    
+    // Check for explicit country mentions
+    if (addressLower.includes('india')) {
+      return { country: 'India', countryCode: 'IN' };
+    }
+    
+    return null;
+  }
+
+  /**
    * Geocode an address to coordinates using Nominatim (OpenStreetMap) - free, no API key required
    * Rate limited to 1 request per second
    * Also extracts country information from the address
    */
   async geocodeAddress(address: string): Promise<GeocodingResult | null> {
     try {
-      console.log(`[LocationService] Geocoding address: ${address}`);
+      // Clean the address first
+      const cleanedAddress = this.cleanAddressForGeocoding(address);
+      console.log(`[LocationService] Geocoding address: ${cleanedAddress}`);
       
       // Use Nominatim (OpenStreetMap) - free geocoding service
       // Important: Must include User-Agent header per their usage policy
       const response = await axios.get('https://nominatim.openstreetmap.org/search', {
         params: {
-          q: address,
+          q: cleanedAddress,
           format: 'json',
           limit: 1,
           addressdetails: 1, // Include address details for country extraction
@@ -219,10 +273,39 @@ export class LocationService {
         return geocoded;
       }
 
-      console.log(`[LocationService] No geocoding results found for: ${address}`);
+      // Fallback: Try to extract country from address text patterns
+      console.log(`[LocationService] Geocoding API returned no results, trying pattern matching...`);
+      const extractedCountry = this.extractCountryFromAddressText(address);
+      
+      if (extractedCountry) {
+        console.log(`[LocationService] Extracted country from address text: ${extractedCountry.country} (${extractedCountry.countryCode})`);
+        return {
+          latitude: 0,
+          longitude: 0,
+          formattedAddress: cleanedAddress,
+          country: extractedCountry.country,
+          countryCode: extractedCountry.countryCode,
+        };
+      }
+
+      console.log(`[LocationService] No geocoding results found for: ${cleanedAddress}`);
       return null;
     } catch (error) {
       console.error('[LocationService] Geocoding error:', error);
+      
+      // Even on error, try to extract country from address patterns
+      const extractedCountry = this.extractCountryFromAddressText(address);
+      if (extractedCountry) {
+        console.log(`[LocationService] Fallback: Extracted country from address text: ${extractedCountry.country}`);
+        return {
+          latitude: 0,
+          longitude: 0,
+          formattedAddress: address,
+          country: extractedCountry.country,
+          countryCode: extractedCountry.countryCode,
+        };
+      }
+      
       return null;
     }
   }

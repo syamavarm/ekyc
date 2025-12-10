@@ -50,8 +50,11 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
   useEffect(() => {
     if (localVideoRef.current && videoStream) {
       localVideoRef.current.srcObject = videoStream;
+      localVideoRef.current.play().catch(err => {
+        console.log('Video autoplay:', err);
+      });
     }
-  }, [videoStream]);
+  }, [videoStream, status]);
 
   /**
    * Capture a single frame from the video

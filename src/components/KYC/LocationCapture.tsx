@@ -41,12 +41,15 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
   const [error, setError] = useState<string>('');
   const localVideoRef = useRef<HTMLVideoElement>(null);
 
-  // Assign stream to video element
+  // Assign stream to video element - re-run when status changes to ensure video plays
   useEffect(() => {
     if (localVideoRef.current && videoStream) {
       localVideoRef.current.srcObject = videoStream;
+      localVideoRef.current.play().catch(err => {
+        console.log('Video autoplay:', err);
+      });
     }
-  }, [videoStream]);
+  }, [videoStream, status]);
 
   useEffect(() => {
     // Auto-capture location on mount
@@ -143,10 +146,33 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
           </div>
         )}
 
-        {(status === 'captured' || status === 'error') && (
-          <div className="status-message">
-            <p>Location captured</p>
-            <small>Proceeding to next step...</small>
+        {status === 'captured' && location && (
+          <div className="status-message success">
+            <span className="icon">✅</span>
+            <p>Location Captured</p>
+            
+            {/* GPS Coordinates */}
+            <div className="location-details">
+              {location.gps ? (
+                <>
+                  <p><strong>Latitude:</strong> {location.gps.latitude.toFixed(6)}</p>
+                  <p><strong>Longitude:</strong> {location.gps.longitude.toFixed(6)}</p>
+                </>
+              ) : (
+                <p>Location detected via IP</p>
+              )}
+            </div>
+            
+            <small className="proceeding">Proceeding to next step...</small>
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div className="status-message error">
+            <span className="icon">⚠️</span>
+            <p>Location Error</p>
+            <small>{error || 'Could not capture location'}</small>
+            <small className="proceeding">Proceeding anyway...</small>
           </div>
         )}
       </div>

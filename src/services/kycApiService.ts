@@ -243,6 +243,33 @@ class KYCApiService {
   }
 
   /**
+   * Upload both front and back sides of document
+   */
+  async uploadDocumentBothSides(
+    sessionId: string,
+    documentType: string,
+    frontFile: File,
+    backFile: File
+  ): Promise<DocumentUploadResponse> {
+    const formData = new FormData();
+    formData.append('sessionId', sessionId);
+    formData.append('documentType', documentType);
+    formData.append('documentFront', frontFile);
+    formData.append('documentBack', backFile);
+
+    const response = await fetch(`${API_BASE_URL}/kyc/document/upload-both-sides`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to upload document');
+    }
+
+    return response.json();
+  }
+
+  /**
    * Run OCR on uploaded document
    */
   async runOCR(sessionId: string, documentId: string): Promise<OCRResponse> {

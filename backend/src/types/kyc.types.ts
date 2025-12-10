@@ -67,7 +67,7 @@ export interface SecureVerificationData {
     matchScore: number;
     confidence: number;
     capturedImageUrl?: string;
-    documentPhotoUrl?: string;
+    documentImageUrl?: string;
   };
   
   // Liveness check results
@@ -142,12 +142,12 @@ export interface DocumentData {
   imageUrl: string;
   imageBuffer?: Buffer;
   
+  // Back side of document (for two-sided capture)
+  backImageUrl?: string;
+  backImageBuffer?: Buffer;
+  
   // OCR Results
   ocrResults?: OCRResults;
-  
-  // Extracted photo from document (for face verification)
-  extractedPhotoBuffer?: Buffer;
-  extractedPhotoUrl?: string;
   ocrResultsUrl?: string;
   
   // Validation
@@ -177,14 +177,8 @@ export interface OCRResults {
     gender?: string;
     address?: string;
     placeOfBirth?: string;
-    photoRegion?: Array<{
-      pageNumber: number;
-      polygon: number[];
-    }>;
     [key: string]: any;
   };
-  photoUrl?: string;
-  photoBuffer?: Buffer;
   confidence: number;
   processedAt: Date;
   rawResponse?: unknown;
@@ -193,7 +187,6 @@ export interface OCRResults {
 export interface FaceVerificationData {
   capturedImageUrl?: string;
   capturedImageBuffer?: Buffer;
-  documentPhotoUrl?: string;
   matchScore: number;
   isMatch: boolean;
   threshold: number;

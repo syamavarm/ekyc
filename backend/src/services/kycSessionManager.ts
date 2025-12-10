@@ -469,26 +469,19 @@ export class KYCSessionManager {
     // Create lean document data (without buffers)
     let leanDocument: LeanDocumentData | undefined;
     if (document) {
-      const {
-        imageBuffer,
-        extractedPhotoBuffer,
-        ocrResults,
-        ...docWithoutBuffers
-      } = document;
+      const { imageBuffer, ocrResults, ...docWithoutBuffers } = document;
       
-      // Create lean OCR results (without raw response and buffers)
+      // Create lean OCR results (without raw response)
       let leanOcrResults: LeanOCRResults | undefined;
       if (ocrResults) {
-        const { rawResponse, photoBuffer, ...ocrWithoutRaw } = ocrResults;
+        const { rawResponse, ...ocrWithoutRaw } = ocrResults;
         leanOcrResults = ocrWithoutRaw;
       }
       
       leanDocument = {
         ...docWithoutBuffers,
         ocrResults: leanOcrResults,
-        // Keep URLs for reference
         hasImageBuffer: !!imageBuffer,
-        hasExtractedPhoto: !!extractedPhotoBuffer,
       };
     }
     
@@ -512,12 +505,9 @@ export interface LeanDocumentData {
   isValid: boolean;
   validationErrors?: string[];
   confidenceScore?: number;
-  extractedPhotoUrl?: string;
   ocrResultsUrl?: string;
   ocrResults?: LeanOCRResults;
-  // Flags indicating binary data exists on server
   hasImageBuffer?: boolean;
-  hasExtractedPhoto?: boolean;
 }
 
 /**
@@ -537,12 +527,7 @@ export interface LeanOCRResults {
     gender?: string;
     address?: string;
     placeOfBirth?: string;
-    photoRegion?: Array<{
-      pageNumber: number;
-      polygon: number[];
-    }>;
   };
-  photoUrl?: string;
   confidence: number;
   processedAt: Date;
 }

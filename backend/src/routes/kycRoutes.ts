@@ -322,6 +322,83 @@ router.post('/document/upload', upload.single('document'), async (req: Request, 
 });
 
 /**
+ * POST /kyc/document/upload-both-sides
+ * Upload both front and back sides of an ID document
+ */
+router.post('/document/upload-both-sides', upload.fields([
+  { name: 'documentFront', maxCount: 1 },
+  { name: 'documentBack', maxCount: 1 }
+]), async (req: Request, res: Response) => {
+  try {
+    const { sessionId, documentType } = req.body;
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing sessionId',
+        message: 'sessionId is required',
+      } as ErrorResponse);
+    }
+    
+    const frontFile = files?.documentFront?.[0];
+    const backFile = files?.documentBack?.[0];
+    
+    if (!frontFile || !backFile) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing documents',
+        message: 'Both front and back document images are required',
+      } as ErrorResponse);
+    }
+    
+    if (!documentType) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing documentType',
+        message: 'documentType is required',
+      } as ErrorResponse);
+    }
+    
+    const session = sessionManager.getSession(sessionId);
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found',
+        message: `Session ${sessionId} not found`,
+      } as ErrorResponse);
+    }
+    
+    // Save both documents with linked IDs
+    const documentData = await documentService.saveDocumentBothSides(
+      frontFile.buffer,
+      backFile.buffer,
+      documentType,
+      frontFile.originalname
+    );
+    
+    // Update session with combined document data
+    sessionManager.updateDocument(sessionId, documentData);
+    
+    const response: DocumentUploadResponse = {
+      success: true,
+      documentId: documentData.documentId,
+      imageUrl: documentData.imageUrl,
+      message: 'Both sides of document uploaded successfully',
+    };
+    
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('[KYC Routes] Error uploading document sides:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: 'Failed to upload document sides',
+    } as ErrorResponse);
+  }
+});
+
+/**
  * POST /kyc/document/ocr
  * Run OCR on uploaded document
  * All binary data (images, OCR raw response) is stored in the backend.
@@ -356,22 +433,19 @@ router.post('/document/ocr', async (req: Request, res: Response) => {
       } as ErrorResponse);
     }
     
-    // Perform document analysis (OCR + Photo extraction)
-    // All data is stored in backend - photoBuffer, ocrResults with rawResponse, etc.
-    const { ocrResults, photoBuffer, photoUrl, ocrResultsUrl } = await documentService.analyzeDocument(session.document);
+    // Perform document analysis (OCR only - face verification uses document front directly)
+    const { ocrResults, ocrResultsUrl } = await documentService.analyzeDocument(session.document);
     
     // Validate OCR results
     const validation = documentService.validateDocumentData(ocrResults);
     
-    // Store FULL data in session (including buffers and raw response)
+    // Store data in session
     const updatedDocument = {
       ...session.document,
-      ocrResults, // Full OCR results stored in backend
+      ocrResults,
       isValid: validation.isValid,
       validationErrors: validation.errors,
       confidenceScore: ocrResults.confidence,
-      extractedPhotoBuffer: photoBuffer || undefined, // Binary data stored in backend
-      extractedPhotoUrl: photoUrl || undefined,
       ocrResultsUrl: ocrResultsUrl || undefined,
     };
     
@@ -384,13 +458,7 @@ router.post('/document/ocr', async (req: Request, res: Response) => {
       extractedData: ocrResults.extractedData, // Only extracted fields, no photoRegion polygon details
       confidence: ocrResults.confidence,
       processedAt: ocrResults.processedAt,
-      photoUrl: ocrResults.photoUrl, // URL reference only
     };
-    
-    // Remove photoRegion from extractedData sent to frontend (large polygon arrays)
-    if (leanOcrResults.extractedData.photoRegion) {
-      delete leanOcrResults.extractedData.photoRegion;
-    }
     
     const response: DocumentOCRResponse = {
       success: validation.isValid,
@@ -479,27 +547,36 @@ router.post('/face-liveness', upload.fields([
     fs.writeFileSync(faceImagePath, faceImage.buffer);
     console.log(`[KYC Routes] Saved captured face image: ${faceImagePath}`);
     
-    // Get document photo for face verification
+    // Get document image for face verification
+    // Prefer front document image (better for Azure Face API), fallback to extracted photo
+    const frontImagePath = path.join(UPLOADS_DIR, `${documentId}-front.jpg`);
     const photoImagePath = path.join(UPLOADS_DIR, `${documentId}-photo.jpg`);
     
-    if (!fs.existsSync(photoImagePath)) {
+    let documentImagePath: string;
+    if (fs.existsSync(frontImagePath)) {
+      documentImagePath = frontImagePath;
+      console.log(`[KYC Routes] Using front document image for face matching: ${frontImagePath}`);
+    } else if (fs.existsSync(photoImagePath)) {
+      documentImagePath = photoImagePath;
+      console.log(`[KYC Routes] Using extracted photo for face matching: ${photoImagePath}`);
+    } else {
       return res.status(400).json({
         success: false,
-        error: 'Document photo not available',
-        message: `Document photo not found: ${photoImagePath}`,
+        error: 'Document image not available',
+        message: `No document image found for face verification`,
       } as ErrorResponse);
     }
     
     // ============================================================
-    // STEP 1: Face Matching (face capture vs document photo)
+    // STEP 1: Face Matching (face capture vs document image)
     // ============================================================
     console.log(`[KYC Routes] Step 1: Face matching...`);
     const faceBuffer = fs.readFileSync(faceImagePath);
-    const photoBuffer = fs.readFileSync(photoImagePath);
+    const documentBuffer = fs.readFileSync(documentImagePath);
     
     const faceMatchResult = await faceVerificationService.verifyFaceMatch(
       faceBuffer,
-      photoBuffer
+      documentBuffer
     );
     
     console.log(`[KYC Routes] Face match result: isMatch=${faceMatchResult.isMatch}, score=${faceMatchResult.matchScore}`);
@@ -602,7 +679,7 @@ router.post('/face-liveness', upload.fields([
         matchScore: faceMatchResult.matchScore,
         confidence: faceMatchResult.confidence,
         capturedImageUrl: `/uploads/${documentId}-face.jpg`,
-        documentPhotoUrl: `/uploads/${documentId}-photo.jpg`,
+        documentImageUrl: `/uploads/${documentId}-front.jpg`,
       },
       liveness: {
         overallResult: livenessResult.overallResult,
@@ -775,10 +852,8 @@ router.get('/session/:id/summary', async (req: Request, res: Response) => {
       // Ensure no binary data in summary response
       if (summary.document) {
         delete (summary.document as any).imageBuffer;
-        delete (summary.document as any).extractedPhotoBuffer;
         if (summary.document.ocrResults) {
           delete (summary.document.ocrResults as any).rawResponse;
-          delete (summary.document.ocrResults as any).photoBuffer;
         }
       }
       res.status(200).json(summary);
