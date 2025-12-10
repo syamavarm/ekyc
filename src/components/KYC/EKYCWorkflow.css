@@ -947,6 +947,24 @@
   color: #666;
 }
 
+/* Get Ready Phase */
+.get-ready-instruction {
+  text-align: center;
+  padding: 20px;
+}
+
+.get-ready-instruction .pulse-icon {
+  font-size: 4rem;
+  display: block;
+  margin-bottom: 20px;
+  animation: pulseIcon 1.5s ease-in-out infinite;
+}
+
+@keyframes pulseIcon {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.8; }
+}
+
 /* Liveness Check - Countdown Display */
 .countdown-display {
   text-align: center;

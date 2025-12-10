@@ -1,5 +1,6 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import kycApiService from '../../services/kycApiService';
+import { playVoice, isAudioReady, stopAllAudio } from '../../services/audioService';
 
 interface DocumentVerificationProps {
   sessionId: string;
@@ -43,9 +44,12 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
   const [cardDetected, setCardDetected] = useState<boolean>(false);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Track which steps have had audio played (to avoid replaying on re-renders)
+  const audioPlayedRef = useRef<Set<string>>(new Set());
 
   // Assign stream to video element - also re-run when step changes to capture mode
-  React.useEffect(() => {
+  useEffect(() => {
     if (localVideoRef.current && videoStream) {
       localVideoRef.current.srcObject = videoStream;
       // Ensure video plays
@@ -54,6 +58,61 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
       });
     }
   }, [videoStream, step]);
+
+  // Play audio instructions based on step (only for capture steps)
+  useEffect(() => {
+    const playStepAudio = async () => {
+      // Skip if audio already played for this step
+      if (audioPlayedRef.current.has(step)) return;
+      
+      let message = '';
+      
+      switch (step) {
+        case 'capture-front':
+          message = 'Position the front of your ID card within the frame, and click on Capture Front Side button.';
+          break;
+        case 'capture-back':
+          message = 'Now flip your card. Position the back of your ID card within the frame, and click on Capture Back Side button.';
+          break;
+        // processing and verified are handled directly in handleUploadBoth
+        // No audio for review-front and review-back (retake scenarios)
+        default:
+          return;
+      }
+      
+      if (message) {
+        // Mark as played immediately to prevent duplicate attempts
+        audioPlayedRef.current.add(step);
+        
+        // Wait a moment for audio system to be ready, then play
+        // This handles cases where component mounts before audio is fully initialized
+        const attemptPlay = async (retries: number = 3) => {
+          if (isAudioReady()) {
+            await playVoice(message, false);
+          } else if (retries > 0) {
+            // Retry after a short delay
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await attemptPlay(retries - 1);
+          } else {
+            console.warn('[DocumentVerification] Audio not ready, skipping voice');
+          }
+        };
+        
+        await attemptPlay();
+      }
+    };
+    
+    // Small delay to ensure component is fully mounted and audio is ready
+    const timer = setTimeout(playStepAudio, 300);
+    return () => clearTimeout(timer);
+  }, [step]);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      stopAllAudio();
+    };
+  }, []);
 
   // Calculate the card region coordinates
   const getCardRegion = useCallback(() => {
@@ -151,6 +210,12 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
 
     setStep('processing');
     setError('');
+    
+    // Play processing audio
+    if (isAudioReady()) {
+      audioPlayedRef.current.add('processing');
+      playVoice('Verifying document. Please wait.', false);
+    }
 
     try {
       // Upload both front and back documents
@@ -167,9 +232,18 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
       if (ocrResponse.isValid) {
         setOcrResults(ocrResponse.ocrResults);
         setStep('verified');
-        setTimeout(() => {
-          onDocumentVerified(uploadResponse.documentId, ocrResponse.ocrResults);
-        }, 2000);
+        
+        // Play completion audio and wait for it to finish
+        if (isAudioReady()) {
+          await playVoice('Document verification complete. Proceeding to next step.', true);
+          // Mark as played so useEffect doesn't play it again
+          audioPlayedRef.current.add('verified');
+        }
+        
+        // Small pause after audio completes
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        onDocumentVerified(uploadResponse.documentId, ocrResponse.ocrResults);
       } else {
         setError(ocrResponse.validationErrors?.join(', ') || 'Document validation failed');
         setStep('review-back');

@@ -11,6 +11,7 @@ import DocumentVerification from './DocumentVerification';
 import FaceVerification from './FaceVerification';
 import QuestionnaireScreen from './QuestionnaireScreen';
 import CompletionScreen from './CompletionScreen';
+import { initializeAudio, playVoice, isAudioReady } from '../../services/audioService';
 import './EKYCWorkflow.css';
 
 export type WorkflowStep =
@@ -87,6 +88,10 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   const [loading, setLoading] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  
+  // Audio state for camera setup step
+  const [cameraAudioPlayed, setCameraAudioPlayed] = useState(false);
+  const [cameraAudioPlaying, setCameraAudioPlaying] = useState(false);
 
   // Calculate enabled steps based on workflow configuration
   // Location capture now comes AFTER document verification to enable address comparison
@@ -161,6 +166,42 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       }
     };
   }, [localStream]);
+
+  // Play audio instructions when camera becomes active on video_call step
+  useEffect(() => {
+    const playCameraSetupAudio = async () => {
+      if (state.currentStep === 'video_call' && localStream && !cameraAudioPlayed && !cameraAudioPlaying) {
+        setCameraAudioPlaying(true);
+        
+        // Initialize audio (user already interacted by giving consent)
+        await initializeAudio();
+        
+        // Play the instruction message
+        const message = "We are starting the identity verification process. " +
+          "Please ensure you can see yourself clearly in the live view and your face is well lit.";
+        
+        if (isAudioReady()) {
+          await playVoice(message, true);
+        } else {
+          // If audio not available, just wait a moment for user to read
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+        
+        setCameraAudioPlaying(false);
+        setCameraAudioPlayed(true);
+      }
+    };
+    
+    playCameraSetupAudio();
+  }, [state.currentStep, localStream, cameraAudioPlayed, cameraAudioPlaying]);
+
+  // Reset camera audio state when moving away from video_call step
+  useEffect(() => {
+    if (state.currentStep !== 'video_call') {
+      setCameraAudioPlayed(false);
+      setCameraAudioPlaying(false);
+    }
+  }, [state.currentStep]);
 
   const getNextStep = (currentStep: WorkflowStep): WorkflowStep => {
     // Use the enabled steps list to determine the next step
@@ -403,9 +444,13 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
               <button
                 className="btn-primary"
                 onClick={handleVideoCallReady}
-                disabled={loading || !localStream}
+                disabled={loading || !localStream || cameraAudioPlaying || !cameraAudioPlayed}
               >
-                {localStream ? nextStepLabel : 'Waiting for camera...'}
+                {!localStream 
+                  ? 'Waiting for camera...' 
+                  : cameraAudioPlaying 
+                    ? 'Please wait...' 
+                    : nextStepLabel}
               </button>
             </div>
           </div>

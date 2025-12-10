@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import kycApiService from '../../services/kycApiService';
+import { playVoice, isAudioReady } from '../../services/audioService';
 
 interface LocationCaptureProps {
   sessionId: string;
@@ -40,6 +41,8 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
   const [addressComparison, setAddressComparison] = useState<AddressComparison | null>(null);
   const [error, setError] = useState<string>('');
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const hasStartedRef = useRef(false);
+  const hasCompletedRef = useRef(false);
 
   // Assign stream to video element - re-run when status changes to ensure video plays
   useEffect(() => {
@@ -52,14 +55,22 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
   }, [videoStream, status]);
 
   useEffect(() => {
-    // Auto-capture location on mount
-    captureLocation();
+    // Auto-capture location on mount (prevent duplicate calls)
+    if (!hasStartedRef.current) {
+      hasStartedRef.current = true;
+      captureLocation();
+    }
   }, []);
 
   const captureLocation = async () => {
     setStatus('capturing');
     setError('');
     setAddressComparison(null);
+
+    // Play capturing audio and wait for it to finish
+    if (isAudioReady()) {
+      await playVoice('Capturing your location for compliance purposes.', true);
+    }
 
     let gpsLatitude: number | undefined;
     let gpsLongitude: number | undefined;
@@ -106,10 +117,18 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
       setStatus('captured');
     }
 
-    // Auto-advance to next step after showing results (success or error)
-    setTimeout(() => {
+    // Play completion audio and wait for it to finish (only once)
+    if (!hasCompletedRef.current) {
+      hasCompletedRef.current = true;
+      
+      if (isAudioReady()) {
+        await playVoice('Location verification complete. Proceeding to next step.', true);
+      }
+      
+      // Small pause after audio, then advance
+      await new Promise(resolve => setTimeout(resolve, 500));
       onLocationCaptured(locationData);
-    }, 2500);
+    }
   };
 
   return (

@@ -1,5 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import kycApiService, { SecureVerificationResponse } from '../../services/kycApiService';
+import {
+  initializeAudio,
+  playBeep,
+  playVoice,
+  playBeepThenVoice,
+  stopAllAudio,
+  isAudioReady,
+  logAvailableVoices
+} from '../../services/audioService';
 
 interface FaceVerificationProps {
   sessionId: string;
@@ -12,6 +21,7 @@ interface FaceVerificationProps {
 
 type VerificationStatus = 
   | 'idle'           // Initial state - show instructions
+  | 'get_ready'      // Countdown before starting
   | 'capturing_face' // Capturing initial face image
   | 'liveness'       // Performing liveness actions
   | 'verifying'      // Sending to backend for verification
@@ -45,6 +55,10 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
   const [currentInstruction, setCurrentInstruction] = useState<string>('');
   const [countdown, setCountdown] = useState<number | null>(null);
   const [result, setResult] = useState<SecureVerificationResponse | null>(null);
+  
+  // Intro audio state
+  const [introAudioPlayed, setIntroAudioPlayed] = useState(false);
+  const introAudioStartedRef = useRef(false);
 
   // Assign stream to video element
   useEffect(() => {
@@ -55,6 +69,32 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
       });
     }
   }, [videoStream, status]);
+
+  // Play intro audio when component mounts
+  useEffect(() => {
+    const playIntroAudio = async () => {
+      if (introAudioStartedRef.current) return;
+      introAudioStartedRef.current = true;
+      
+      // Small delay to ensure component is mounted
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      if (isAudioReady()) {
+        await playVoice('You will now be asked to follow a set of instructions to verify your identity. Please be prepared to follow them.', true);
+      }
+      
+      setIntroAudioPlayed(true);
+    };
+    
+    playIntroAudio();
+  }, []);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      stopAllAudio();
+    };
+  }, []);
 
   /**
    * Capture a single frame from the video
@@ -76,23 +116,80 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
   };
 
   /**
+   * Helper: Show instruction with audio
+   * @param waitForVoice - If true, waits for voice to complete before returning
+   */
+  const showInstruction = async (
+    text: string, 
+    type: 'prepare' | 'action' | 'info' = 'info',
+    waitForVoice: boolean = false
+  ): Promise<void> => {
+    setCurrentInstruction(text);
+    
+    if (isAudioReady()) {
+      if (type === 'prepare') {
+        await playBeepThenVoice(text, 'prepare');
+        if (waitForVoice) {
+          // Estimate ~100ms per word for speech
+          const wordCount = text.split(' ').length;
+          await new Promise(resolve => setTimeout(resolve, wordCount * 120));
+        }
+      } else if (type === 'action') {
+        await playBeepThenVoice(text, 'action');
+        if (waitForVoice) {
+          const wordCount = text.split(' ').length;
+          await new Promise(resolve => setTimeout(resolve, wordCount * 120));
+        }
+      } else {
+        if (waitForVoice) {
+          await playVoice(text, true);
+        } else {
+          playVoice(text, false);
+        }
+      }
+    }
+  };
+
+  /**
    * Start the secure verification process
    */
   const startVerification = async () => {
     setError('');
-    setStatus('capturing_face');
     
-    // Small delay to let UI update
-    await new Promise(resolve => setTimeout(resolve, 300));
+    // Initialize audio on user interaction (button click)
+    await initializeAudio();
+    
+    // Log available voices for debugging (check browser console)
+    logAvailableVoices();
+    
+    // Step 0: Get Ready phase with countdown
+    setStatus('get_ready');
+    await showInstruction('Position your face in the center of the frame', 'prepare', true);
+    
+    // Give user additional time to position themselves
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Countdown before face capture
+    await showInstruction('Look straight at the camera, after the beep.', 'prepare');
+    setCountdown(3);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setCountdown(2);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setCountdown(1);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setCountdown(null);
     
     // Step 1: Capture initial face image
-    setCurrentInstruction('Look straight at the camera');
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    setStatus('capturing_face');
+    await showInstruction('Hold still', 'action');
+    await playBeep('action'); // Sharp beep for capture
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     const faceImage = await captureFrame();
     if (!faceImage) {
       setError('Failed to capture face image');
       setStatus('failed');
+      stopAllAudio();
       setTimeout(() => onComplete(), 3000);
       return;
     }
@@ -112,11 +209,11 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
    */
   const performLivenessActions = async (): Promise<Blob[]> => {
     const instructions = [
-      { text: 'Please blink your eyes naturally', duration: 3000, captureCount: 6 },
-      { text: 'Turn your head slowly to the left', duration: 2500, captureCount: 5 },
-      { text: 'Turn your head slowly to the right', duration: 2500, captureCount: 5 },
-      { text: 'Please smile', duration: 2000, captureCount: 4 },
-      { text: 'Look straight at the camera', duration: 1500, captureCount: 3 },
+      { text: 'Blink your eyes naturally', voiceText: 'Please blink your eyes naturally, after the beep', duration: 3000, captureCount: 6 },
+      { text: 'Turn head slowly to the left', voiceText: 'Turn your head slowly to the left, after the beep', duration: 2500, captureCount: 5 },
+      { text: 'Turn head slowly to the right', voiceText: 'Turn your head slowly to the right, after the beep', duration: 2500, captureCount: 5 },
+      { text: 'Please smile', voiceText: 'Please smile, after the beep', duration: 2000, captureCount: 4 },
+      { text: 'Look straight at the camera', voiceText: 'Look straight at the camera, after the beep', duration: 1500, captureCount: 3 },
     ];
 
     const frames: Blob[] = [];
@@ -124,18 +221,30 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
     for (let i = 0; i < instructions.length; i++) {
       const instruction = instructions[i];
       
-      // Show instruction with countdown
-      setCurrentInstruction(instruction.text);
-      setCountdown(3);
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setCountdown(2);
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setCountdown(1);
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Show "prepare" instruction with soft beep and voice
+      setCurrentInstruction(`Get ready: ${instruction.text}`);
       setCountdown(null);
       
-      // Start capturing
+      if (isAudioReady()) {
+        await playBeep('prepare');
+        await new Promise(resolve => setTimeout(resolve, 100));
+        await playVoice(instruction.voiceText, true);
+      } else {
+        // If no audio, show instruction for a few seconds
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
+      // Small pause after voice completes
+      await new Promise(resolve => setTimeout(resolve, 400));
+      
+      // Action NOW - sharp beep (this is the "beep" they were told to wait for)
       setCurrentInstruction(`${instruction.text} - NOW!`);
+      if (isAudioReady()) {
+        await playBeep('action');
+      }
+      
+      // Small delay after beep before starting capture
+      await new Promise(resolve => setTimeout(resolve, 200));
       
       const captureInterval = instruction.duration / instruction.captureCount;
       
@@ -150,7 +259,7 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
         }
       }
       
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 400));
     }
 
     console.log(`[SecureVerification] Captured ${frames.length} liveness frames`);
@@ -164,6 +273,12 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
     setStatus('verifying');
     setCurrentInstruction('Verifying identity...');
     
+    // Stop any playing audio and announce verifying
+    stopAllAudio();
+    if (isAudioReady()) {
+      playVoice('Please wait. Verifying your identity.', false);
+    }
+    
     try {
       const result = await kycApiService.runSecureVerification(
         sessionId,
@@ -173,21 +288,32 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
       );
       
       setResult(result);
+      stopAllAudio();
       
       if (result.overallResult) {
         onVerified();
         setStatus('success');
-        setTimeout(() => onComplete(), 3000);
+        if (isAudioReady()) {
+          await playVoice('Verification complete. Proceeding to next step.', true);
+        }
+        setTimeout(() => onComplete(), 2000);
       } else {
         setError(result.message);
         setStatus('failed');
-        setTimeout(() => onComplete(), 4000);
+        if (isAudioReady()) {
+          await playVoice('Verification complete. Proceeding to next step.', true);
+        }
+        setTimeout(() => onComplete(), 2500);
       }
     } catch (err: any) {
       console.error('[SecureVerification] Verification error:', err);
       setError(err.message || 'Verification failed');
       setStatus('failed');
-      setTimeout(() => onComplete(), 3000);
+      stopAllAudio();
+      if (isAudioReady()) {
+        await playVoice('Verification complete. Proceeding to next step.', true);
+      }
+      setTimeout(() => onComplete(), 2000);
     }
   };
 
@@ -206,11 +332,17 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
               maxWidth: '640px',
               borderRadius: '10px',
               transform: 'scaleX(-1)',
-              border: status === 'liveness' ? '3px solid #ff9800' : '3px solid #4caf50'
+              border: status === 'liveness' ? '3px solid #ff9800' : 
+                     status === 'get_ready' ? '3px solid #2196f3' : 
+                     status === 'capturing_face' ? '3px solid #ff5722' : '3px solid #4caf50'
             }}
           />
           <p className="video-label">
-            {status === 'liveness' ? '🔴 Recording' : 'Live Camera'}
+            {status === 'liveness' ? (
+              currentInstruction.includes('NOW') ? '🔴 Recording' : '👂 Listen...'
+            ) : 
+             status === 'get_ready' ? '⏳ Get Ready...' :
+             status === 'capturing_face' ? '📸 Capturing...' : 'Live Camera'}
           </p>
         </div>
       )}
@@ -228,10 +360,35 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
                 <li>✓ The process takes about 25-30 seconds</li>
               </ul>
             </div>
-            <button className="btn-primary" onClick={startVerification} disabled={loading}>
-              Start Verification
+            <button 
+              className="btn-primary" 
+              onClick={startVerification} 
+              disabled={loading || !introAudioPlayed}
+            >
+              {introAudioPlayed ? 'Start Verification' : 'Please wait...'}
             </button>
           </>
+        )}
+
+        {/* Get ready phase with countdown */}
+        {status === 'get_ready' && (
+          <div className="status-message">
+            {countdown !== null ? (
+              <div className="countdown-display">
+                <div className="countdown-number">{countdown}</div>
+                <div className="countdown-instruction">{currentInstruction}</div>
+                <p className="countdown-hint">Get ready to hold still...</p>
+              </div>
+            ) : (
+              <>
+                <div className="get-ready-instruction">
+                  <div className="pulse-icon">👁️</div>
+                  <p className="instruction-text">{currentInstruction}</p>
+                </div>
+                <p className="hint-text">Make sure your face is centered and well-lit</p>
+              </>
+            )}
+          </div>
         )}
 
         {/* Capturing initial face */}
@@ -246,19 +403,19 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
         {/* Liveness actions */}
         {status === 'liveness' && (
           <div className="status-message">
-            {countdown !== null ? (
-              <div className="countdown-display">
-                <div className="countdown-number">{countdown}</div>
-                <div className="countdown-instruction">{currentInstruction}</div>
-                <p className="countdown-hint">Get ready...</p>
-              </div>
-            ) : (
+            {currentInstruction.includes('NOW') ? (
               <div className="liveness-instruction-large">
                 <div className="action-now">{currentInstruction}</div>
                 <div className="recording-indicator">
                   <span className="recording-dot"></span>
                   Recording...
                 </div>
+              </div>
+            ) : (
+              <div className="get-ready-instruction">
+                <div className="pulse-icon">👂</div>
+                <p className="instruction-text">{currentInstruction}</p>
+                <p className="hint-text">Listen to the instruction...</p>
               </div>
             )}
           </div>
@@ -269,14 +426,13 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
           <div className="status-message">
             <div className="spinner"></div>
             <p>{currentInstruction}</p>
-            <p className="hint-text">Checking face match, liveness, and consistency...</p>
           </div>
         )}
 
         {/* Complete - success or failed (don't reveal result to user) */}
         {(status === 'success' || status === 'failed') && (
           <div className="status-message">
-            <p>Face & Liveness check complete</p>
+            <p>Identity verification complete</p>
             <small>Proceeding to next step...</small>
           </div>
         )}

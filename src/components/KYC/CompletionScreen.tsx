@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import kycApiService, { RequiredSteps } from '../../services/kycApiService';
+import { playVoice, isAudioReady } from '../../services/audioService';
 
 interface CompletionScreenProps {
   sessionId: string;
@@ -14,10 +15,21 @@ const CompletionScreen: React.FC<CompletionScreenProps> = ({
 }) => {
   const [completionResult, setCompletionResult] = useState<CompletionResult | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
+  const audioPlayedRef = useRef(false);
 
   useEffect(() => {
     completeAndLoadResults();
   }, []);
+
+  // Play completion audio when results are loaded
+  useEffect(() => {
+    if (!loadingStatus && !audioPlayedRef.current) {
+      audioPlayedRef.current = true;
+      if (isAudioReady()) {
+        playVoice('Thank you for completing the verification process. Your submission has been received and will be reviewed.', false);
+      }
+    }
+  }, [loadingStatus]);
 
   // Call the complete API - results are stored on server for admin review
   const completeAndLoadResults = async () => {
