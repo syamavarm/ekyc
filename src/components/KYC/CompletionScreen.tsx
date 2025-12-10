@@ -3,52 +3,42 @@ import kycApiService, { RequiredSteps } from '../../services/kycApiService';
 
 interface CompletionScreenProps {
   sessionId: string;
-  onComplete: () => void;
-  loading: boolean;
 }
 
 interface CompletionResult {
-  success: boolean;
-  verificationResults: {
-    documentVerified: boolean;
-    secureVerified: boolean;
-    locationVerified: boolean;
-    questionnaireVerified?: boolean;
-    overallVerified: boolean;
-  };
   requiredSteps: RequiredSteps;
-  status: string;
 }
 
 const CompletionScreen: React.FC<CompletionScreenProps> = ({
   sessionId,
-  onComplete,
-  loading,
 }) => {
   const [completionResult, setCompletionResult] = useState<CompletionResult | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
-  const [error, setError] = useState<string>('');
 
   useEffect(() => {
     completeAndLoadResults();
   }, []);
 
-  // Call the complete API to get verification results based on workflow config
-  // Report is automatically saved on the server
+  // Call the complete API - results are stored on server for admin review
   const completeAndLoadResults = async () => {
     try {
       setLoadingStatus(true);
       const result = await kycApiService.completeKYC(sessionId);
       console.log('[CompletionScreen] Complete result:', result);
       setCompletionResult({
-        success: result.success,
-        verificationResults: result.verificationResults,
         requiredSteps: result.requiredSteps,
-        status: result.status,
       });
     } catch (err: any) {
       console.error('Failed to complete KYC:', err);
-      setError(err.message || 'Failed to complete KYC verification');
+      // Even if there's an error, show completion screen with defaults
+      setCompletionResult({ 
+        requiredSteps: {
+          locationCapture: false,
+          documentOCR: false,
+          secureVerification: false,
+          questionnaire: false,
+        }
+      });
     } finally {
       setLoadingStatus(false);
     }
@@ -65,47 +55,15 @@ const CompletionScreen: React.FC<CompletionScreenProps> = ({
     );
   }
 
-  if (error) {
-    return (
-      <div className="completion-screen">
-        <div className="completion-card">
-          <div className="warning-icon">⚠️</div>
-          <h2>KYC Verification Error</h2>
-          <p className="warning-message">{error}</p>
-          
-          <div className="session-details">
-            <p><strong>Session ID:</strong> {sessionId}</p>
-          </div>
-
-          <div className="completion-actions">
-            <button
-              className="btn-primary"
-              onClick={onComplete}
-              disabled={loading}
-            >
-              {loading ? 'Finalizing...' : 'Finish'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const allVerified = completionResult?.verificationResults?.overallVerified;
-  const results = completionResult?.verificationResults;
   const required = completionResult?.requiredSteps;
 
-  // Helper to render verification item only if it was required
-  const renderVerificationItem = (
-    isRequired: boolean,
-    isVerified: boolean,
-    label: string
-  ) => {
+  // Helper to render completed step (neutral - no pass/fail)
+  const renderCompletedStep = (isRequired: boolean, label: string) => {
     if (!isRequired) return null;
     
     return (
-      <div className={`verification-item ${isVerified ? 'pass' : 'fail'}`}>
-        <span className="icon">{isVerified ? '✓' : '✗'}</span>
+      <div className="verification-item completed">
+        <span className="icon">✓</span>
         <span>{label}</span>
       </div>
     );
@@ -114,63 +72,26 @@ const CompletionScreen: React.FC<CompletionScreenProps> = ({
   return (
     <div className="completion-screen">
       <div className="completion-card">
-        {allVerified ? (
-          <>
-            <div className="success-icon">✓</div>
-            <h2>KYC Verification Complete!</h2>
-            <p className="success-message">
-              Your identity has been successfully verified.
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="warning-icon">⚠️</div>
-            <h2>KYC Verification Incomplete</h2>
-            <p className="warning-message">
-              Some verification steps did not pass. Please review the results below.
-            </p>
-          </>
-        )}
+        <div className="completion-header">
+          <span className="success-icon-inline">✓</span>
+          <h2>Verification Process Complete</h2>
+        </div>
+        <p className="completion-message">
+          Thank you for completing the verification process. Your submission has been received and will be reviewed.
+        </p>
 
         <div className="verification-summary">
-          <h3>Verification Results</h3>
+          <h3>Steps Completed</h3>
           <div className="verification-items">
-            {/* Only show steps that were required by the workflow config */}
-            {renderVerificationItem(
-              required?.locationCapture ?? false,
-              results?.locationVerified ?? false,
-              'Location Verification'
-            )}
-            {renderVerificationItem(
-              required?.documentOCR ?? false,
-              results?.documentVerified ?? false,
-              'Document Verification'
-            )}
-            {renderVerificationItem(
-              required?.secureVerification ?? false,
-              results?.secureVerified ?? false,
-              'Face & Liveness'
-            )}
-            {renderVerificationItem(
-              required?.questionnaire ?? false,
-              results?.questionnaireVerified ?? false,
-              'Questionnaire'
-            )}
+            {renderCompletedStep(required?.locationCapture ?? false, 'Location Capture')}
+            {renderCompletedStep(required?.documentOCR ?? false, 'Document Verification')}
+            {renderCompletedStep(required?.secureVerification ?? false, 'Face & Liveness Check')}
+            {renderCompletedStep(required?.questionnaire ?? false, 'Questionnaire')}
           </div>
         </div>
 
         <div className="session-details">
-          <p><strong>Session ID:</strong> {sessionId}</p>
-        </div>
-
-        <div className="completion-actions">
-          <button
-            className="btn-primary"
-            onClick={onComplete}
-            disabled={loading}
-          >
-            {loading ? 'Finalizing...' : 'Finish'}
-          </button>
+          <p><strong>Reference ID:</strong> {sessionId}</p>
         </div>
       </div>
     </div>

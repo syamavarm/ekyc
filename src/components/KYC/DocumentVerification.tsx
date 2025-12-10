@@ -20,7 +20,6 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
   const [ocrResults, setOcrResults] = useState<any>(null);
   const [error, setError] = useState<string>('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
 
   // Assign stream to video element
@@ -50,16 +49,6 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
         setStep('upload');
       }
     }, 'image/jpeg', 0.95);
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      setCapturedImage(imageUrl);
-      setCapturedFile(file);
-      setStep('upload');
-    }
   };
 
   const handleUpload = async () => {
@@ -114,7 +103,7 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
             muted
             style={{
               width: '100%',
-              maxWidth: '400px',
+              maxWidth: '640px',
               borderRadius: '10px',
               transform: 'scaleX(-1)',
               border: '3px solid #667eea'
@@ -141,16 +130,6 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
               <button className="btn-primary" onClick={handleCaptureFromVideo}>
                 📸 Capture Document
               </button>
-              <button className="btn-secondary" onClick={() => fileInputRef.current?.click()}>
-                📁 Upload File
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                style={{ display: 'none' }}
-              />
             </div>
           </>
         )}
@@ -182,17 +161,15 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
         )}
 
         {step === 'verified' && ocrResults && (
-          <div className="status-message success">
-            <span className="icon">✓</span>
-            <p>Document verified successfully!</p>
+          <div className="status-message">
             <div className="ocr-results">
               <h3>Extracted Information:</h3>
               <p><strong>Name:</strong> {ocrResults.extractedData.fullName}</p>
               <p><strong>Date of Birth:</strong> {ocrResults.extractedData.dateOfBirth}</p>
               <p><strong>Address:</strong> {ocrResults.extractedData.address}</p>
               <p><strong>Document Number:</strong> {ocrResults.extractedData.documentNumber}</p>
-              <p><strong>Confidence:</strong> {(ocrResults.confidence * 100).toFixed(1)}%</p>
             </div>
+            <small>Proceeding to next step...</small>
           </div>
         )}
       </div>

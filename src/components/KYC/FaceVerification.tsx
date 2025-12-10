@@ -200,7 +200,7 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
             muted
             style={{
               width: '100%',
-              maxWidth: '400px',
+              maxWidth: '640px',
               borderRadius: '10px',
               transform: 'scaleX(-1)',
               border: status === 'liveness' ? '3px solid #ff9800' : '3px solid #4caf50'
@@ -270,78 +270,11 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
           </div>
         )}
 
-        {/* Success */}
-        {status === 'success' && result && (
-          <div className="status-message success">
-            <span className="icon">✓</span>
-            <p>Verification Successful!</p>
-            
-            <div className="verification-details">
-              <div className="detail-item">
-                <span className={result.faceMatch.isMatch ? 'check-pass' : 'check-fail'}>
-                  {result.faceMatch.isMatch ? '✓' : '✗'}
-                </span>
-                <span>Face Match: {(result.faceMatch.matchScore * 100).toFixed(0)}%</span>
-              </div>
-              <div className="detail-item">
-                <span className={result.liveness.overallResult ? 'check-pass' : 'check-fail'}>
-                  {result.liveness.overallResult ? '✓' : '✗'}
-                </span>
-                <span>Liveness: {(result.liveness.confidenceScore * 100).toFixed(0)}%</span>
-              </div>
-              <div className="detail-item">
-                <span className={result.faceConsistency.isConsistent ? 'check-pass' : 'check-fail'}>
-                  {result.faceConsistency.isConsistent ? '✓' : '✗'}
-                </span>
-                <span>Consistency: {(result.faceConsistency.consistencyScore * 100).toFixed(0)}%</span>
-              </div>
-            </div>
-            
-            {result.liveness.checks.length > 0 && (
-              <div className="liveness-checks">
-                {result.liveness.checks.map((check, index) => (
-                  <div key={index} className="check-item">
-                    <span className={check.result ? 'check-pass' : 'check-fail'}>
-                      {check.result ? '✓' : '✗'}
-                    </span>
-                    {check.type.replace(/_/g, ' ')}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Failed */}
-        {status === 'failed' && (
-          <div className="status-message error">
-            <span className="icon">⚠️</span>
-            <p>{error}</p>
-            
-            {result && (
-              <div className="verification-details failure">
-                <div className="detail-item">
-                  <span className={result.faceMatch.isMatch ? 'check-pass' : 'check-fail'}>
-                    {result.faceMatch.isMatch ? '✓' : '✗'}
-                  </span>
-                  <span>Face Match</span>
-                </div>
-                <div className="detail-item">
-                  <span className={result.liveness.overallResult ? 'check-pass' : 'check-fail'}>
-                    {result.liveness.overallResult ? '✓' : '✗'}
-                  </span>
-                  <span>Liveness</span>
-                </div>
-                <div className="detail-item">
-                  <span className={result.faceConsistency.isConsistent ? 'check-pass' : 'check-fail'}>
-                    {result.faceConsistency.isConsistent ? '✓' : '✗'}
-                  </span>
-                  <span>Consistency</span>
-                </div>
-              </div>
-            )}
-            
-            <p className="proceeding-message">Proceeding to next step...</p>
+        {/* Complete - success or failed (don't reveal result to user) */}
+        {(status === 'success' || status === 'failed') && (
+          <div className="status-message">
+            <p>Face & Liveness check complete</p>
+            <small>Proceeding to next step...</small>
           </div>
         )}
       </div>

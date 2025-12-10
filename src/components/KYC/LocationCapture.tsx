@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import kycApiService from '../../services/kycApiService';
 
 interface LocationCaptureProps {
@@ -7,6 +7,7 @@ interface LocationCaptureProps {
   loading: boolean;
   documentAddress?: string;
   locationRadiusKm?: number;
+  videoStream?: MediaStream | null;
 }
 
 interface AddressComparison {
@@ -32,11 +33,20 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
   loading,
   documentAddress,
   locationRadiusKm,
+  videoStream,
 }) => {
   const [status, setStatus] = useState<'idle' | 'capturing' | 'comparing' | 'captured' | 'error'>('idle');
   const [location, setLocation] = useState<any>(null);
   const [addressComparison, setAddressComparison] = useState<AddressComparison | null>(null);
   const [error, setError] = useState<string>('');
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+
+  // Assign stream to video element
+  useEffect(() => {
+    if (localVideoRef.current && videoStream) {
+      localVideoRef.current.srcObject = videoStream;
+    }
+  }, [videoStream]);
 
   useEffect(() => {
     // Auto-capture location on mount
@@ -101,6 +111,26 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
 
   return (
     <div className="location-capture">
+      {/* Live video preview */}
+      {videoStream && (
+        <div className="live-video-preview">
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{
+              width: '100%',
+              maxWidth: '640px',
+              borderRadius: '10px',
+              transform: 'scaleX(-1)',
+              border: '3px solid #667eea'
+            }}
+          />
+          <p className="video-label">Live Camera</p>
+        </div>
+      )}
+
       <div className="location-card">
         <h2>📍 Location Verification</h2>
         <p>We need to verify your location for compliance purposes.</p>
@@ -113,102 +143,10 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
           </div>
         )}
 
-        {status === 'captured' && (
-          <div className="status-message success">
-            <span className="icon">✓</span>
-            <p>Location verification complete!</p>
+        {(status === 'captured' || status === 'error') && (
+          <div className="status-message">
+            <p>Location captured</p>
             <small>Proceeding to next step...</small>
-            
-            {/* Show location source */}
-            {addressComparison?.locationSource && (
-              <p className="location-source">
-                <strong>Location Source:</strong> {addressComparison.locationSource === 'gps' ? 'GPS' : 'IP Address'}
-              </p>
-            )}
-            
-            {location?.gps && (
-              <div className="location-details">
-                <p>
-                  <strong>Coordinates:</strong> {location.gps.latitude.toFixed(6)}, {location.gps.longitude.toFixed(6)}
-                </p>
-                <p>
-                  <strong>Accuracy:</strong> ±{Math.round(location.gps.accuracy)}m
-                </p>
-              </div>
-            )}
-            
-            {/* Address Comparison Results */}
-            {addressComparison && (
-              <div className={`address-comparison ${addressComparison.verified ? 'within-radius' : 'outside-radius'}`}>
-                <h4>📍 Address Verification</h4>
-                
-                {/* Country-based comparison display */}
-                {addressComparison.verificationType === 'country' && (
-                  <>
-                    {addressComparison.userCountry && (
-                      <p className="country-info">
-                        <strong>Your Location:</strong> {addressComparison.userCountry}
-                      </p>
-                    )}
-                    {addressComparison.documentCountry && (
-                      <p className="country-info">
-                        <strong>Document Country:</strong> {addressComparison.documentCountry}
-                      </p>
-                    )}
-                    <p className={`verification-status ${addressComparison.sameCountry ? 'verified' : 'not-verified'}`}>
-                      {addressComparison.sameCountry 
-                        ? '✓ You are in the same country as your document address' 
-                        : '⚠️ You are not in the same country as your document address'}
-                    </p>
-                  </>
-                )}
-                
-                {/* Radius-based comparison display */}
-                {addressComparison.verificationType === 'radius' && (
-                  <>
-                    {addressComparison.documentAddress && (
-                      <p className="document-address">
-                        <strong>Document Address:</strong> {addressComparison.documentAddress}
-                      </p>
-                    )}
-                    {addressComparison.distanceKm !== undefined && (
-                      <p className="distance">
-                        <strong>Distance:</strong> {addressComparison.distanceKm.toFixed(1)} km from document address
-                      </p>
-                    )}
-                    {addressComparison.allowedRadiusKm && (
-                      <p className="radius">
-                        <strong>Allowed Radius:</strong> {addressComparison.allowedRadiusKm} km
-                      </p>
-                    )}
-                    <p className={`verification-status ${addressComparison.withinRadius ? 'verified' : 'not-verified'}`}>
-                      {addressComparison.withinRadius 
-                        ? '✓ Location is within acceptable range' 
-                        : '⚠️ Location is outside acceptable range'}
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
-            
-            {/* Show document address info if available but no comparison was done */}
-            {documentAddress && !addressComparison && (
-              <div className="address-info">
-                <p><strong>Document Address:</strong> {documentAddress}</p>
-                <p className="note">Location comparison was configured but could not be completed</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {status === 'error' && (
-          <div className="status-message error">
-            <span className="icon">⚠️</span>
-            <p>Location verification failed</p>
-            <small>{error}</small>
-            <p className="fallback-message">
-              Proceeding to next step...
-            </p>
           </div>
         )}
       </div>

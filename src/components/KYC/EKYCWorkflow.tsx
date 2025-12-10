@@ -327,26 +327,6 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     moveToNextStep('completion');
   };
 
-  const handleWorkflowComplete = async () => {
-    try {
-      setLoading(true);
-      // Call complete API one more time to ensure status is finalized
-      await kycApiService.completeKYC(state.sessionId);
-      // Always call onComplete - user should be able to finish regardless of KYC result
-      if (onComplete) {
-        onComplete(state.sessionId);
-      }
-    } catch (error) {
-      console.error('Failed to complete KYC:', error);
-      // Even if the API call fails, allow user to finish the workflow
-      if (onComplete) {
-        onComplete(state.sessionId);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const renderCurrentStep = () => {
     switch (state.currentStep) {
       case 'consent':
@@ -366,6 +346,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
             loading={loading}
             documentAddress={state.essentialOcrData?.address}
             locationRadiusKm={workflowSteps?.locationRadiusKm}
+            videoStream={localStream}
           />
         );
 
@@ -475,8 +456,6 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
         return (
           <CompletionScreen
             sessionId={state.sessionId}
-            onComplete={handleWorkflowComplete}
-            loading={loading}
           />
         );
 

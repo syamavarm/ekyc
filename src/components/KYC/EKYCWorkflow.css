@@ -337,6 +337,15 @@
   margin-top: 30px;
 }
 
+/* Location Capture */
+.location-capture {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  justify-content: center;
+  align-items: center;
+}
+
 /* Document Verification */
 .document-verification {
   display: flex;
@@ -725,6 +734,22 @@
   color: #4caf50;
 }
 
+.completion-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 15px;
+}
+
+.completion-header h2 {
+  margin: 0;
+}
+
+.success-icon-inline {
+  font-size: 2rem;
+  color: #4caf50;
+}
+
 .warning-icon {
   color: #ff9800;
 }
@@ -769,6 +794,11 @@
 .verification-item.fail {
   background: #ffebee;
   color: #f44336;
+}
+
+.verification-item.completed {
+  background: #e8f5e9;
+  color: #4caf50;
 }
 
 .verification-item .icon {
