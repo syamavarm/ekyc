@@ -129,9 +129,6 @@ const KYCForm: React.FC<KYCFormProps> = ({ onStartKYC, workflowConfigId }) => {
                 maxLength={4}
                 pattern="[0-9]{4}"
               />
-              <p className="otp-hint">
-                Hint: Enter the last 4 digits of your mobile number
-              </p>
             </div>
           )}
 

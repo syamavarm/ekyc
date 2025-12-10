@@ -11,8 +11,7 @@ interface CompletionResult {
   success: boolean;
   verificationResults: {
     documentVerified: boolean;
-    faceVerified: boolean;
-    livenessVerified: boolean;
+    secureVerified: boolean;
     locationVerified: boolean;
     questionnaireVerified?: boolean;
     overallVerified: boolean;
@@ -148,14 +147,9 @@ const CompletionScreen: React.FC<CompletionScreenProps> = ({
               'Document Verification'
             )}
             {renderVerificationItem(
-              required?.faceMatch ?? false,
-              results?.faceVerified ?? false,
-              'Face Verification'
-            )}
-            {renderVerificationItem(
-              required?.livenessCheck ?? false,
-              results?.livenessVerified ?? false,
-              'Liveness Check'
+              required?.secureVerification ?? false,
+              results?.secureVerified ?? false,
+              'Face & Liveness'
             )}
             {renderVerificationItem(
               required?.questionnaire ?? false,

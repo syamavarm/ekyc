@@ -70,23 +70,32 @@ export interface OCRResponse {
   message: string;
 }
 
-export interface FaceVerificationResponse {
+/**
+ * Secure Verification response (combined face + liveness + consistency)
+ * This atomic operation prevents spoofing by verifying face consistency
+ */
+export interface SecureVerificationResponse {
   success: boolean;
-  matchScore: number;
-  isMatch: boolean;
-  confidence: number;
-  message: string;
-}
-
-export interface LivenessCheckResponse {
-  success: boolean;
-  checks: Array<{
-    type: string;
-    result: boolean;
+  faceMatch: {
+    isMatch: boolean;
+    matchScore: number;
     confidence: number;
-  }>;
+  };
+  liveness: {
+    overallResult: boolean;
+    checks: Array<{
+      type: string;
+      result: boolean;
+      confidence: number;
+    }>;
+    confidenceScore: number;
+  };
+  faceConsistency: {
+    isConsistent: boolean;
+    consistencyScore: number;
+    message: string;
+  };
   overallResult: boolean;
-  confidenceScore: number;
   message: string;
 }
 
@@ -115,8 +124,7 @@ export interface QuestionnaireResponse {
 export interface RequiredSteps {
   locationCapture: boolean;
   documentOCR: boolean;
-  faceMatch: boolean;
-  livenessCheck: boolean;
+  secureVerification: boolean;
   questionnaire: boolean;
 }
 
@@ -126,8 +134,7 @@ export interface CompleteKYCResponse {
   status: string;
   verificationResults: {
     documentVerified: boolean;
-    faceVerified: boolean;
-    livenessVerified: boolean;
+    secureVerified: boolean;
     locationVerified: boolean;
     questionnaireVerified?: boolean;
     overallVerified: boolean;
@@ -146,8 +153,7 @@ export interface SessionSummary {
   consent: ConsentData;
   location?: LocationData;
   document?: any;
-  faceVerification?: any;
-  livenessCheck?: any;
+  secureVerification?: any;
   questionnaire?: any;
   verificationResults: any;
   overallScore?: number;
@@ -256,51 +262,39 @@ class KYCApiService {
   }
 
   /**
-   * Verify face match
+   * Secure Verification (combined face + liveness + anti-spoofing)
+   * 
+   * This atomic operation:
+   * 1. Matches face image against document photo
+   * 2. Performs liveness check on captured frames
+   * 3. Verifies face consistency between face capture and liveness frames
+   * 
+   * This prevents spoofing where user shows document during face capture
+   * but uses actual face during liveness.
    */
-  async verifyFace(
+  async runSecureVerification(
     sessionId: string,
     documentId: string,
-    faceImage: Blob
-  ): Promise<FaceVerificationResponse> {
+    faceImage: Blob,
+    livenessFrames: Blob[]
+  ): Promise<SecureVerificationResponse> {
     const formData = new FormData();
     formData.append('sessionId', sessionId);
     formData.append('documentId', documentId);
     formData.append('faceImage', faceImage, 'face.jpg');
-
-    const response = await fetch(`${API_BASE_URL}/kyc/face/verify`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to verify face');
-    }
-
-    return response.json();
-  }
-
-  /**
-   * Run liveness check
-   */
-  async runLivenessCheck(
-    sessionId: string,
-    frames: Blob[]
-  ): Promise<LivenessCheckResponse> {
-    const formData = new FormData();
-    formData.append('sessionId', sessionId);
     
-    frames.forEach((frame, index) => {
+    livenessFrames.forEach((frame, index) => {
       formData.append('frames', frame, `frame${index}.jpg`);
     });
 
-    const response = await fetch(`${API_BASE_URL}/kyc/liveness-check`, {
+    const response = await fetch(`${API_BASE_URL}/kyc/face-liveness`, {
       method: 'POST',
       body: formData,
     });
 
     if (!response.ok) {
-      throw new Error('Failed to run liveness check');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to run secure verification');
     }
 
     return response.json();

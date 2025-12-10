@@ -37,8 +37,7 @@ export class ReportGenerationService {
       consent: session.consent,
       location: session.location,
       document: session.document,
-      faceVerification: session.faceVerification,
-      livenessCheck: session.livenessCheck,
+      secureVerification: session.secureVerification,
       questionnaire: session.questionnaire,
       verificationResults: session.verificationResults,
       overallScore: session.overallScore,
@@ -106,8 +105,7 @@ export class ReportGenerationService {
     // doc.fontSize(16).text('Verification Results:', { underline: true });
     // doc.fontSize(12);
     // doc.text(`Document Verified: ${session.verificationResults.documentVerified ? 'YES' : 'NO'}`);
-    // doc.text(`Face Verified: ${session.verificationResults.faceVerified ? 'YES' : 'NO'}`);
-    // doc.text(`Liveness Verified: ${session.verificationResults.livenessVerified ? 'YES' : 'NO'}`);
+    // doc.text(`Secure Verification: ${session.verificationResults.secureVerificationVerified ? 'YES' : 'NO'}`);
     // doc.text(`Location Verified: ${session.verificationResults.locationVerified ? 'YES' : 'NO'}`);
     // doc.moveDown();
     
@@ -232,29 +230,35 @@ export class ReportGenerationService {
       lines.push('');
     }
     
-    // Face Verification
-    if (session.faceVerification) {
-      lines.push('FACE VERIFICATION');
+    // Secure Verification (Face + Liveness)
+    if (session.secureVerification) {
+      lines.push('SECURE VERIFICATION');
       lines.push('-'.repeat(80));
-      lines.push(`Match Score: ${(session.faceVerification.matchScore * 100).toFixed(2)}%`);
-      lines.push(`Result: ${session.faceVerification.isMatch ? 'MATCH' : 'NO MATCH'}`);
-      lines.push(`Confidence: ${(session.faceVerification.confidence * 100).toFixed(2)}%`);
-      lines.push(`Threshold: ${(session.faceVerification.threshold * 100).toFixed(2)}%`);
-      lines.push(`Verified: ${session.faceVerification.verifiedAt.toLocaleString()}`);
+      lines.push(`Overall Result: ${session.secureVerification.overallResult ? 'PASS' : 'FAIL'}`);
+      lines.push(`Verified: ${session.secureVerification.verifiedAt.toLocaleString()}`);
       lines.push('');
-    }
-    
-    // Liveness Check
-    if (session.livenessCheck) {
-      lines.push('LIVENESS CHECK');
-      lines.push('-'.repeat(80));
-      lines.push(`Overall Result: ${session.livenessCheck.overallResult ? 'PASS' : 'FAIL'}`);
-      lines.push(`Confidence: ${(session.livenessCheck.confidenceScore * 100).toFixed(2)}%`);
+      
+      // Face Match
+      lines.push('Face Match:');
+      lines.push(`  Match Score: ${(session.secureVerification.faceMatch.matchScore * 100).toFixed(2)}%`);
+      lines.push(`  Result: ${session.secureVerification.faceMatch.isMatch ? 'MATCH' : 'NO MATCH'}`);
+      lines.push(`  Confidence: ${(session.secureVerification.faceMatch.confidence * 100).toFixed(2)}%`);
       lines.push('');
-      lines.push('Individual Checks:');
-      for (const check of session.livenessCheck.checks) {
-        lines.push(`  ${check.type}: ${check.result ? 'PASS' : 'FAIL'} (${(check.confidence * 100).toFixed(2)}%)`);
+      
+      // Liveness
+      lines.push('Liveness Check:');
+      lines.push(`  Result: ${session.secureVerification.liveness.overallResult ? 'PASS' : 'FAIL'}`);
+      lines.push(`  Confidence: ${(session.secureVerification.liveness.confidenceScore * 100).toFixed(2)}%`);
+      for (const check of session.secureVerification.liveness.checks) {
+        lines.push(`    ${check.type}: ${check.result ? 'PASS' : 'FAIL'} (${(check.confidence * 100).toFixed(2)}%)`);
       }
+      lines.push('');
+      
+      // Face Consistency
+      lines.push('Face Consistency:');
+      lines.push(`  Result: ${session.secureVerification.faceConsistency.isConsistent ? 'CONSISTENT' : 'INCONSISTENT'}`);
+      lines.push(`  Score: ${(session.secureVerification.faceConsistency.consistencyScore * 100).toFixed(2)}%`);
+      lines.push(`  Message: ${session.secureVerification.faceConsistency.message}`);
       lines.push('');
     }
     
@@ -278,8 +282,7 @@ export class ReportGenerationService {
     lines.push('VERIFICATION RESULTS SUMMARY');
     lines.push('-'.repeat(80));
     lines.push(`Document Verified: ${session.verificationResults.documentVerified ? 'YES' : 'NO'}`);
-    lines.push(`Face Verified: ${session.verificationResults.faceVerified ? 'YES' : 'NO'}`);
-    lines.push(`Liveness Verified: ${session.verificationResults.livenessVerified ? 'YES' : 'NO'}`);
+    lines.push(`Secure Verification: ${session.verificationResults.secureVerificationVerified ? 'YES' : 'NO'}`);
     lines.push(`Location Verified: ${session.verificationResults.locationVerified ? 'YES' : 'NO'}`);
     if (session.verificationResults.questionnaireVerified !== undefined) {
       lines.push(`Questionnaire Verified: ${session.verificationResults.questionnaireVerified ? 'YES' : 'NO'}`);

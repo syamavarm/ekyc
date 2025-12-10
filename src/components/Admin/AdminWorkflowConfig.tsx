@@ -4,8 +4,7 @@ import './AdminWorkflowConfig.css';
 interface WorkflowSteps {
   locationCapture: boolean;
   documentOCR: boolean;
-  faceMatch: boolean;
-  livenessCheck: boolean;
+  secureVerification: boolean;
   questionnaire: boolean;
   locationRadiusKm?: number;
 }
@@ -40,8 +39,7 @@ interface OCRResults {
 
 interface VerificationResults {
   documentVerified: boolean;
-  faceVerified: boolean;
-  livenessVerified: boolean;
+  secureVerified: boolean;
   locationVerified: boolean;
   questionnaireVerified?: boolean;
   overallVerified: boolean;
@@ -61,14 +59,21 @@ interface KYCSession {
     ocrResults?: OCRResults;
     isValid: boolean;
   };
-  faceVerification?: {
-    matchScore: number;
-    isMatch: boolean;
-    confidence: number;
-  };
-  livenessCheck?: {
+  secureVerification?: {
+    faceMatch: {
+      matchScore: number;
+      isMatch: boolean;
+      confidence: number;
+    };
+    liveness: {
+      overallResult: boolean;
+      confidenceScore: number;
+    };
+    faceConsistency: {
+      isConsistent: boolean;
+      consistencyScore: number;
+    };
     overallResult: boolean;
-    confidenceScore: number;
   };
   verificationResults: VerificationResults;
   overallScore?: number;
@@ -89,8 +94,7 @@ const AdminWorkflowConfig: React.FC = () => {
   const [steps, setSteps] = useState<WorkflowSteps>({
     locationCapture: true,
     documentOCR: true,
-    faceMatch: true,
-    livenessCheck: true,
+    secureVerification: true,
     questionnaire: true,
     locationRadiusKm: undefined,
   });
@@ -170,8 +174,7 @@ const AdminWorkflowConfig: React.FC = () => {
     setSteps({
       locationCapture: true,
       documentOCR: true,
-      faceMatch: true,
-      livenessCheck: true,
+      secureVerification: true,
       questionnaire: true,
       locationRadiusKm: undefined,
     });
@@ -471,29 +474,14 @@ const AdminWorkflowConfig: React.FC = () => {
 
           <div className="step-item">
             <div className="step-info-compact">
-              <span className="step-icon-small">👤</span>
-              <span>Face Match</span>
+              <span className="step-icon-small">🛡️</span>
+              <span>Face & Liveness Anti-Spoofing</span>
             </div>
             <label className="toggle-switch">
               <input
                 type="checkbox"
-                checked={steps.faceMatch}
-                onChange={() => handleStepToggle('faceMatch')}
-              />
-              <span className="toggle-slider"></span>
-            </label>
-          </div>
-
-          <div className="step-item">
-            <div className="step-info-compact">
-              <span className="step-icon-small">🎭</span>
-              <span>Liveness Check</span>
-            </div>
-            <label className="toggle-switch">
-              <input
-                type="checkbox"
-                checked={steps.livenessCheck}
-                onChange={() => handleStepToggle('livenessCheck')}
+                checked={steps.secureVerification}
+                onChange={() => handleStepToggle('secureVerification')}
               />
               <span className="toggle-slider"></span>
             </label>
@@ -590,8 +578,7 @@ const AdminWorkflowConfig: React.FC = () => {
                     <div className="step-badges">
                       {config.steps.documentOCR && <span className="step-badge">OCR</span>}
                       {config.steps.locationCapture && <span className="step-badge">Location</span>}
-                      {config.steps.faceMatch && <span className="step-badge">Face</span>}
-                      {config.steps.livenessCheck && <span className="step-badge">Liveness</span>}
+                      {config.steps.secureVerification && <span className="step-badge">Face+Live</span>}
                       {config.steps.questionnaire && <span className="step-badge">Quiz</span>}
                     </div>
                   </td>
@@ -727,14 +714,33 @@ const AdminWorkflowConfig: React.FC = () => {
                         <span className="check-icon">{session.verificationResults.documentVerified ? '✓' : '✗'}</span>
                         <span>Document</span>
                       </div>
-                      <div className={`check-item ${session.verificationResults.faceVerified ? 'passed' : 'failed'}`}>
-                        <span className="check-icon">{session.verificationResults.faceVerified ? '✓' : '✗'}</span>
-                        <span>Face {session.faceVerification ? `(${(session.faceVerification.matchScore * 100).toFixed(0)}%)` : ''}</span>
-                      </div>
-                      <div className={`check-item ${session.verificationResults.livenessVerified ? 'passed' : 'failed'}`}>
-                        <span className="check-icon">{session.verificationResults.livenessVerified ? '✓' : '✗'}</span>
-                        <span>Liveness {session.livenessCheck ? `(${(session.livenessCheck.confidenceScore * 100).toFixed(0)}%)` : ''}</span>
-                      </div>
+                      {/* Face Match */}
+                      {session.secureVerification && (
+                        <div className={`check-item ${session.secureVerification.faceMatch.isMatch ? 'passed' : 'failed'}`}>
+                          <span className="check-icon">
+                            {session.secureVerification.faceMatch.isMatch ? '✓' : '✗'}
+                          </span>
+                          <span>Face Match ({(session.secureVerification.faceMatch.matchScore * 100).toFixed(0)}%)</span>
+                        </div>
+                      )}
+                      {/* Liveness */}
+                      {session.secureVerification && (
+                        <div className={`check-item ${session.secureVerification.liveness.overallResult ? 'passed' : 'failed'}`}>
+                          <span className="check-icon">
+                            {session.secureVerification.liveness.overallResult ? '✓' : '✗'}
+                          </span>
+                          <span>Liveness ({(session.secureVerification.liveness.confidenceScore * 100).toFixed(0)}%)</span>
+                        </div>
+                      )}
+                      {/* Face Consistency */}
+                      {session.secureVerification && (
+                        <div className={`check-item ${session.secureVerification.faceConsistency.isConsistent ? 'passed' : 'failed'}`}>
+                          <span className="check-icon">
+                            {session.secureVerification.faceConsistency.isConsistent ? '✓' : '✗'}
+                          </span>
+                          <span>Consistency ({(session.secureVerification.faceConsistency.consistencyScore * 100).toFixed(0)}%)</span>
+                        </div>
+                      )}
                       <div className={`check-item ${session.verificationResults.locationVerified ? 'passed' : 'failed'}`}>
                         <span className="check-icon">{session.verificationResults.locationVerified ? '✓' : '✗'}</span>
                         <span>Location</span>

@@ -268,6 +268,12 @@
   text-transform: uppercase;
 }
 
+.step-badge-secure {
+  background: linear-gradient(135deg, #dcfce7, #d1fae5);
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
 .date-cell {
   white-space: nowrap;
   color: #64748b;
@@ -431,6 +437,30 @@
 
 .check-icon {
   font-weight: bold;
+}
+
+/* Secure Check Item in Sessions */
+.check-item-secure {
+  border: 1px solid currentColor;
+}
+
+.check-item-secure.passed {
+  border-color: #86efac;
+}
+
+.check-item-secure.failed {
+  border-color: #fca5a5;
+}
+
+.secure-check-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.check-scores {
+  font-size: 0.65rem;
+  opacity: 0.8;
 }
 
 .overall-score {
@@ -633,6 +663,48 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 0.5rem;
+}
+
+.step-item.full-width .step-info-compact {
+  align-self: flex-start;
+}
+
+/* Security Info Badge in Modal */
+.step-item.security-info {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  border-color: #86efac;
+  align-items: flex-start;
+  padding: 1rem;
+}
+
+.security-badge {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.security-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.security-text {
+  flex: 1;
+}
+
+.security-text strong {
+  display: block;
+  color: #166534;
+  margin-bottom: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.security-text p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #15803d;
+  line-height: 1.5;
 }
 
 .step-info-compact {

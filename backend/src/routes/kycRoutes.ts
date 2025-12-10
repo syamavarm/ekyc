@@ -22,10 +22,8 @@ import {
   DocumentUploadResponse,
   DocumentOCRRequest,
   DocumentOCRResponse,
-  FaceVerificationRequest,
-  FaceVerificationResponse,
-  LivenessCheckRequest,
-  LivenessCheckResponse,
+  CombinedFaceLivenessRequest,
+  CombinedFaceLivenessResponse,
   CompleteKYCRequest,
   CompleteKYCResponse,
   ErrorResponse,
@@ -416,13 +414,27 @@ router.post('/document/ocr', async (req: Request, res: Response) => {
 });
 
 /**
- * POST /kyc/face/verify
- * Compare face to ID photo
+ * POST /kyc/face-liveness (Secure Verification)
+ * Combined face verification + liveness check in a single atomic operation.
+ * This prevents spoofing attacks where user shows document during face capture
+ * but uses their actual face during liveness check.
+ * 
+ * The endpoint:
+ * 1. Matches the initial face capture against the document photo
+ * 2. Performs liveness checks on the captured frames
+ * 3. Verifies face consistency between face capture and liveness frames
  */
-router.post('/face/verify', upload.single('faceImage'), async (req: Request, res: Response) => {
+router.post('/face-liveness', upload.fields([
+  { name: 'faceImage', maxCount: 1 },
+  { name: 'frames', maxCount: 30 }
+]), async (req: Request, res: Response) => {
   try {
-    const { sessionId, documentId }: FaceVerificationRequest = req.body;
-    const faceImage = req.file;
+    const { sessionId, documentId }: CombinedFaceLivenessRequest = req.body;
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    const faceImage = files?.faceImage?.[0];
+    const frames = files?.frames || [];
+    
+    console.log(`[KYC Routes] Combined face+liveness request - sessionId: ${sessionId}, faceImage: ${!!faceImage}, frames: ${frames.length}`);
     
     if (!sessionId || !documentId) {
       return res.status(400).json({
@@ -436,7 +448,7 @@ router.post('/face/verify', upload.single('faceImage'), async (req: Request, res
       return res.status(400).json({
         success: false,
         error: 'Missing faceImage',
-        message: 'Face image is required',
+        message: 'Initial face image is required',
       } as ErrorResponse);
     }
     
@@ -462,12 +474,12 @@ router.post('/face/verify', upload.single('faceImage'), async (req: Request, res
       fs.mkdirSync(UPLOADS_DIR, { recursive: true });
     }
     
-    // Save captured face image as -face.jpg
+    // Save captured face image
     const faceImagePath = path.join(UPLOADS_DIR, `${documentId}-face.jpg`);
     fs.writeFileSync(faceImagePath, faceImage.buffer);
     console.log(`[KYC Routes] Saved captured face image: ${faceImagePath}`);
     
-    // Use saved -photo.jpg file for face verification
+    // Get document photo for face verification
     const photoImagePath = path.join(UPLOADS_DIR, `${documentId}-photo.jpg`);
     
     if (!fs.existsSync(photoImagePath)) {
@@ -478,108 +490,156 @@ router.post('/face/verify', upload.single('faceImage'), async (req: Request, res
       } as ErrorResponse);
     }
     
-    console.log(`[KYC Routes] Using saved files for face verification:`);
-    console.log(`[KYC Routes]   Face: ${faceImagePath}`);
-    console.log(`[KYC Routes]   Photo: ${photoImagePath}`);
-    
-    // Perform face verification using saved -face.jpg and -photo.jpg files
+    // ============================================================
+    // STEP 1: Face Matching (face capture vs document photo)
+    // ============================================================
+    console.log(`[KYC Routes] Step 1: Face matching...`);
     const faceBuffer = fs.readFileSync(faceImagePath);
     const photoBuffer = fs.readFileSync(photoImagePath);
-    const verificationResult = await faceVerificationService.verifyFaceMatch(
+    
+    const faceMatchResult = await faceVerificationService.verifyFaceMatch(
       faceBuffer,
       photoBuffer
     );
     
-    // Add image paths to verification result for reference
-    const verificationResultWithPaths = {
-      ...verificationResult,
-      capturedImageUrl: `/uploads/${documentId}-face.jpg`,
-      documentPhotoUrl: `/uploads/${documentId}-photo.jpg`,
-    };
+    console.log(`[KYC Routes] Face match result: isMatch=${faceMatchResult.isMatch}, score=${faceMatchResult.matchScore}`);
     
-    // Update session
-    sessionManager.updateFaceVerification(sessionId, verificationResultWithPaths);
+    // ============================================================
+    // STEP 2: Liveness Check
+    // ============================================================
+    console.log(`[KYC Routes] Step 2: Liveness check with ${frames.length} frames...`);
+    const frameBuffers = frames.map(f => f.buffer);
     
-    const response: FaceVerificationResponse = {
-      success: verificationResult.isMatch,
-      matchScore: verificationResult.matchScore,
-      isMatch: verificationResult.isMatch,
-      confidence: verificationResult.confidence,
-      message: verificationResult.isMatch 
-        ? 'Face verification successful'
-        : 'Face does not match document photo',
-    };
-    
-    res.status(200).json(response);
-  } catch (error) {
-    console.error('[KYC Routes] Error verifying face:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: 'Failed to verify face',
-    } as ErrorResponse);
-  }
-});
-
-/**
- * POST /kyc/liveness-check
- * Run real-time liveness checks
- */
-router.post('/liveness-check', upload.array('frames', 30), async (req: Request, res: Response) => {
-  try {
-    const { sessionId, checkType }: LivenessCheckRequest = req.body;
-    const frames = req.files as Express.Multer.File[];
-    
-    console.log(`[KYC Routes] Liveness check request - sessionId: ${sessionId}, frames received: ${frames?.length || 0}`);
-    
-    if (!sessionId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing sessionId',
-        message: 'sessionId is required',
-      } as ErrorResponse);
-    }
-    
-    const session = sessionManager.getSession(sessionId);
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        error: 'Session not found',
-        message: `Session ${sessionId} not found`,
-      } as ErrorResponse);
-    }
-    
-    // Extract frame buffers
-    const frameBuffers = frames?.map(f => f.buffer) || [];
-    
-    console.log(`[KYC Routes] Processing ${frameBuffers.length} frame buffers for liveness check`);
-    
-    // Perform liveness check
     const livenessResult = await livenessCheckService.performLivenessCheck(
       frameBuffers,
       { sessionId }
     );
     
-    // Update session
-    sessionManager.updateLivenessCheck(sessionId, livenessResult);
+    console.log(`[KYC Routes] Liveness result: overallResult=${livenessResult.overallResult}, confidence=${livenessResult.confidenceScore}`);
     
-    const response: LivenessCheckResponse = {
-      success: livenessResult.overallResult,
-      checks: livenessResult.checks,
-      overallResult: livenessResult.overallResult,
-      confidenceScore: livenessResult.confidenceScore,
-      message: livenessResult.overallResult 
-        ? 'Liveness check passed'
-        : 'Liveness check failed',
+    // ============================================================
+    // STEP 3: Face Consistency Check (face capture vs liveness frames)
+    // This is the KEY anti-spoofing measure that prevents using
+    // different faces for face matching vs liveness
+    // ============================================================
+    console.log(`[KYC Routes] Step 3: Face consistency check...`);
+    
+    let faceConsistencyResult = {
+      isConsistent: true,
+      consistencyScore: 1.0,
+      message: 'Face consistency verified',
     };
+    
+    if (frameBuffers.length > 0) {
+      // Select representative frames from liveness check for consistency verification
+      // Use frames from middle and end to capture different poses
+      const representativeIndices = [
+        0,  // First frame
+        Math.floor(frameBuffers.length / 2),  // Middle frame
+        frameBuffers.length - 1,  // Last frame
+      ].filter((idx, i, arr) => arr.indexOf(idx) === i); // Remove duplicates
+      
+      const consistencyScores: number[] = [];
+      
+      for (const idx of representativeIndices) {
+        try {
+          const livenessFrame = frameBuffers[idx];
+          const consistencyMatch = await faceVerificationService.verifyFaceMatch(
+            faceBuffer,  // Original face capture
+            livenessFrame  // Frame from liveness
+          );
+          consistencyScores.push(consistencyMatch.matchScore);
+          console.log(`[KYC Routes] Consistency check frame ${idx}: score=${consistencyMatch.matchScore}`);
+        } catch (err) {
+          console.warn(`[KYC Routes] Failed to check consistency for frame ${idx}:`, err);
+          // Continue with other frames
+        }
+      }
+      
+      if (consistencyScores.length > 0) {
+        // Calculate average consistency score
+        const avgConsistencyScore = consistencyScores.reduce((a, b) => a + b, 0) / consistencyScores.length;
+        
+        // Threshold for face consistency (slightly lower than face match since poses vary)
+        const CONSISTENCY_THRESHOLD = 0.50;
+        
+        faceConsistencyResult = {
+          isConsistent: avgConsistencyScore >= CONSISTENCY_THRESHOLD,
+          consistencyScore: avgConsistencyScore,
+          message: avgConsistencyScore >= CONSISTENCY_THRESHOLD
+            ? 'Face consistency verified - same person in face capture and liveness'
+            : 'Face inconsistency detected - different faces in face capture vs liveness',
+        };
+        
+        console.log(`[KYC Routes] Face consistency result: isConsistent=${faceConsistencyResult.isConsistent}, avgScore=${avgConsistencyScore}`);
+      }
+    }
+    
+    // ============================================================
+    // COMBINED RESULT
+    // All three checks must pass for overall success
+    // ============================================================
+    const overallResult = 
+      faceMatchResult.isMatch && 
+      livenessResult.overallResult && 
+      faceConsistencyResult.isConsistent;
+    
+    let message = '';
+    if (!faceMatchResult.isMatch) {
+      message = 'Face does not match document photo';
+    } else if (!livenessResult.overallResult) {
+      message = 'Liveness check failed';
+    } else if (!faceConsistencyResult.isConsistent) {
+      message = 'Face inconsistency detected between face capture and liveness check';
+    } else {
+      message = 'Face verification and liveness check passed successfully';
+    }
+    
+    // Update secure verification in session (combined face + liveness + consistency)
+    sessionManager.updateSecureVerification(sessionId, {
+      faceMatch: {
+        isMatch: faceMatchResult.isMatch,
+        matchScore: faceMatchResult.matchScore,
+        confidence: faceMatchResult.confidence,
+        capturedImageUrl: `/uploads/${documentId}-face.jpg`,
+        documentPhotoUrl: `/uploads/${documentId}-photo.jpg`,
+      },
+      liveness: {
+        overallResult: livenessResult.overallResult,
+        checks: livenessResult.checks,
+        confidenceScore: livenessResult.confidenceScore,
+      },
+      faceConsistency: faceConsistencyResult,
+      overallResult,
+      verifiedAt: new Date(),
+    });
+    
+    const response: CombinedFaceLivenessResponse = {
+      success: overallResult,
+      faceMatch: {
+        isMatch: faceMatchResult.isMatch,
+        matchScore: faceMatchResult.matchScore,
+        confidence: faceMatchResult.confidence,
+      },
+      liveness: {
+        overallResult: livenessResult.overallResult,
+        checks: livenessResult.checks,
+        confidenceScore: livenessResult.confidenceScore,
+      },
+      faceConsistency: faceConsistencyResult,
+      overallResult,
+      message,
+    };
+    
+    console.log(`[KYC Routes] Combined face+liveness result: overall=${overallResult}`);
     
     res.status(200).json(response);
   } catch (error) {
-    console.error('[KYC Routes] Error performing liveness check:', error);
+    console.error('[KYC Routes] Error in combined face+liveness:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
-      message: 'Failed to perform liveness check',
+      message: 'Failed to perform combined face and liveness verification',
     } as ErrorResponse);
   }
 });

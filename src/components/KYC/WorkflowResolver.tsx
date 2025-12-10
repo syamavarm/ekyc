@@ -12,9 +12,9 @@ interface WorkflowConfiguration {
   steps: {
     locationCapture: boolean;
     documentOCR: boolean;
-    faceMatch: boolean;
-    livenessCheck: boolean;
+    secureVerification: boolean;
     questionnaire: boolean;
+    locationRadiusKm?: number;
   };
   formId?: string;
   isActive: boolean;

@@ -26,11 +26,9 @@ export interface KYCSession {
   // Document verification
   document?: DocumentData;
   
-  // Face verification
-  faceVerification?: FaceVerificationData;
-  
-  // Liveness check
-  livenessCheck?: LivenessCheckData;
+  // Secure verification (combined face + liveness with anti-spoofing)
+  // Stores detailed results for audit/reporting
+  secureVerification?: SecureVerificationData;
   
   // Questionnaire (optional)
   questionnaire?: QuestionnaireData;
@@ -50,15 +48,47 @@ export type KYCStatus =
   | 'location_captured'
   | 'document_uploaded'
   | 'document_verified'
-  | 'face_verification_pending'
-  | 'face_verified'
-  | 'liveness_check_pending'
-  | 'liveness_verified'
+  | 'secure_verification_pending'
+  | 'secure_verified'
   | 'questionnaire_pending'
   | 'questionnaire_completed'
   | 'completed'
   | 'failed'
   | 'expired';
+
+/**
+ * Combined secure verification data (face match + liveness + consistency)
+ * Stores all results from the unified verification step
+ */
+export interface SecureVerificationData {
+  // Face match results
+  faceMatch: {
+    isMatch: boolean;
+    matchScore: number;
+    confidence: number;
+    capturedImageUrl?: string;
+    documentPhotoUrl?: string;
+  };
+  
+  // Liveness check results
+  liveness: {
+    overallResult: boolean;
+    checks: LivenessCheck[];
+    confidenceScore: number;
+  };
+  
+  // Face consistency check (anti-spoofing)
+  faceConsistency: {
+    isConsistent: boolean;
+    consistencyScore: number;
+    message: string;
+  };
+  
+  // Overall result
+  overallResult: boolean;
+  verifiedAt: Date;
+  errorMessage?: string;
+}
 
 export interface ConsentData {
   videoRecording: boolean;
@@ -229,8 +259,10 @@ export interface VideoRecordingData {
 
 export interface VerificationResults {
   documentVerified: boolean;
-  faceVerified: boolean;
-  livenessVerified: boolean;
+  /**
+   * Secure verification result: face match + liveness + consistency all passed
+   */
+  secureVerified: boolean;
   locationVerified: boolean;
   questionnaireVerified?: boolean;
   overallVerified: boolean;
@@ -322,6 +354,49 @@ export interface LivenessCheckResponse {
   message: string;
 }
 
+/**
+ * Combined Face + Liveness verification request
+ * This atomic operation prevents spoofing by ensuring the same face
+ * is used throughout face matching and liveness checks.
+ */
+export interface CombinedFaceLivenessRequest {
+  sessionId: string;
+  documentId: string;
+}
+
+/**
+ * Combined Face + Liveness verification response
+ * Includes face match, liveness checks, and face consistency verification
+ */
+export interface CombinedFaceLivenessResponse {
+  success: boolean;
+  
+  // Face match result (face image vs document photo)
+  faceMatch: {
+    isMatch: boolean;
+    matchScore: number;
+    confidence: number;
+  };
+  
+  // Liveness check result
+  liveness: {
+    overallResult: boolean;
+    checks: LivenessCheck[];
+    confidenceScore: number;
+  };
+  
+  // Face consistency check (face image vs liveness frames)
+  faceConsistency: {
+    isConsistent: boolean;
+    consistencyScore: number;
+    message: string;
+  };
+  
+  // Overall combined result
+  overallResult: boolean;
+  message: string;
+}
+
 export interface CompleteKYCRequest {
   sessionId: string;
 }
@@ -344,8 +419,7 @@ export interface SessionSummaryResponse {
   consent: ConsentData;
   location?: LocationData;
   document?: DocumentData;
-  faceVerification?: FaceVerificationData;
-  livenessCheck?: LivenessCheckData;
+  secureVerification?: SecureVerificationData;
   questionnaire?: QuestionnaireData;
   verificationResults: VerificationResults;
   overallScore?: number;
@@ -373,8 +447,15 @@ export interface WorkflowConfiguration {
 export interface WorkflowSteps {
   locationCapture: boolean;
   documentOCR: boolean;
-  faceMatch: boolean;
-  livenessCheck: boolean;
+  /**
+   * Secure Verification: Combined face matching + liveness check with anti-spoofing.
+   * When enabled, performs:
+   * 1. Face match against document photo
+   * 2. Liveness check (blink, head turn, smile)
+   * 3. Face consistency check between face capture and liveness frames
+   * Requires documentOCR to be enabled.
+   */
+  secureVerification: boolean;
   questionnaire: boolean;
   // Location verification radius in kilometers (compare user's GPS with document address)
   locationRadiusKm?: number;

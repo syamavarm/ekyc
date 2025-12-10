@@ -1,80 +1,62 @@
-import React, { useState } from 'react';
-import kycApiService from '../../services/kycApiService';
+import React, { useState, useRef, useEffect } from 'react';
+import kycApiService, { SecureVerificationResponse } from '../../services/kycApiService';
 
 interface FaceVerificationProps {
   sessionId: string;
-  documentId?: string; // Optional - only needed when face match is required
+  documentId: string;
   videoStream: MediaStream | null;
-  onFaceVerified: () => void;
-  onLivenessVerified: () => void;
-  onComplete: () => void; // Called when all required verifications are done
+  onVerified: () => void;
+  onComplete: () => void;
   loading: boolean;
-  requireFaceMatch: boolean; // Whether face match is required
-  requireLivenessCheck: boolean; // Whether liveness check is required
 }
 
+type VerificationStatus = 
+  | 'idle'           // Initial state - show instructions
+  | 'capturing_face' // Capturing initial face image
+  | 'liveness'       // Performing liveness actions
+  | 'verifying'      // Sending to backend for verification
+  | 'success'        // All checks passed
+  | 'failed';        // One or more checks failed
+
+/**
+ * Face & Liveness Verification Component
+ * 
+ * Performs combined face matching + liveness check with anti-spoofing:
+ * 1. Captures initial face image (used for document matching AND consistency check)
+ * 2. Performs liveness actions while capturing frames
+ * 3. Verifies face consistency between initial capture and liveness frames
+ * 
+ * This prevents the attack where user shows document during face capture
+ * but uses their actual face during liveness.
+ */
 const FaceVerification: React.FC<FaceVerificationProps> = ({
   sessionId,
   documentId,
   videoStream,
-  onFaceVerified,
-  onLivenessVerified,
+  onVerified,
   onComplete,
   loading,
-  requireFaceMatch,
-  requireLivenessCheck,
 }) => {
-  const localVideoRef = React.useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  
+  // State
+  const [status, setStatus] = useState<VerificationStatus>('idle');
+  const [error, setError] = useState<string>('');
+  const [currentInstruction, setCurrentInstruction] = useState<string>('');
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [result, setResult] = useState<SecureVerificationResponse | null>(null);
 
   // Assign stream to video element
-  React.useEffect(() => {
+  useEffect(() => {
     if (localVideoRef.current && videoStream) {
       localVideoRef.current.srcObject = videoStream;
     }
   }, [videoStream]);
 
-  // Determine if face match can actually be performed (needs documentId)
-  const canDoFaceMatch = requireFaceMatch && !!documentId;
-  
-  // Determine initial step based on requirements and available data
-  const getInitialStep = (): 'face' | 'liveness' | 'complete' => {
-    // Only go to face step if face match is required AND we have a document
-    if (canDoFaceMatch) return 'face';
-    // If face match required but no document, log warning and skip to liveness
-    if (requireFaceMatch && !documentId) {
-      console.warn('[FaceVerification] Face match required but no documentId available - skipping');
-    }
-    if (requireLivenessCheck) return 'liveness';
-    return 'complete'; // Neither required or possible - will auto-proceed
-  };
-
-  const initialStep = getInitialStep();
-  const [step, setStep] = useState<'face' | 'liveness' | 'complete'>(initialStep);
-
-  // If nothing can be done in this step (no face match possible, no liveness), auto-proceed
-  React.useEffect(() => {
-    if (initialStep === 'complete') {
-      console.log('[FaceVerification] Nothing to do in face step, auto-proceeding to next step');
-      // Small delay to avoid flash
-      const timer = setTimeout(() => {
-        onComplete();
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [initialStep, onComplete]);
-  const [faceStatus, setFaceStatus] = useState<'idle' | 'capturing' | 'verifying' | 'verified' | 'failed'>('idle');
-  const [livenessStatus, setLivenessStatus] = useState<'idle' | 'instructions' | 'capturing' | 'verifying' | 'verified' | 'failed'>(
-    canDoFaceMatch ? 'idle' : 'instructions' // If skipping face, start liveness with instructions
-  );
-  const [faceResult, setFaceResult] = useState<any>(null);
-  const [livenessResult, setLivenessResult] = useState<any>(null);
-  const [error, setError] = useState<string>('');
-  const [currentInstruction, setCurrentInstruction] = useState<string>('');
-  const [capturedFrames, setCapturedFrames] = useState<Blob[]>([]);
-  const faceRetryCountRef = React.useRef<number>(0);
-  const MAX_FACE_RETRIES = 1; // Retry once before moving on
-
-  const captureFaceImage = async () => {
+  /**
+   * Capture a single frame from the video
+   */
+  const captureFrame = async (): Promise<Blob | null> => {
     if (!localVideoRef.current) return null;
 
     const canvas = document.createElement('canvas');
@@ -90,112 +72,48 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
     });
   };
 
-  const proceedToNextStep = () => {
-    console.log('[FaceVerification] Face verification failed after retries, proceeding to next step...');
-    if (requireLivenessCheck) {
-      setStep('liveness');
-      setLivenessStatus('instructions');
-    } else {
-      onComplete();
-    }
-  };
-
-  const handleCaptureFace = async (isRetry: boolean = false) => {
-    setFaceStatus('capturing');
+  /**
+   * Start the secure verification process
+   */
+  const startVerification = async () => {
     setError('');
-
-    try {
-      if (!documentId) {
-        throw new Error('Document ID is required for face verification');
-      }
-
-      const faceImage = await captureFaceImage();
-      if (!faceImage) {
-        throw new Error('Failed to capture face image');
-      }
-
-      setFaceStatus('verifying');
-      const result = await kycApiService.verifyFace(sessionId, documentId, faceImage);
-
-      if (result.isMatch) {
-        setFaceResult(result);
-        setFaceStatus('verified');
-        onFaceVerified();
-        
-        setTimeout(() => {
-          // Check if liveness is required
-          if (requireLivenessCheck) {
-            // Move to liveness check
-            setStep('liveness');
-            setLivenessStatus('instructions');
-          } else {
-            // Face match done, no liveness needed - complete
-            console.log('[FaceVerification] Liveness check not required, completing...');
-            onComplete();
-          }
-        }, 2000);
-      } else {
-        // Face verification failed
-        faceRetryCountRef.current += 1;
-        const currentRetry = faceRetryCountRef.current;
-        
-        if (currentRetry <= MAX_FACE_RETRIES) {
-          // Retry once more
-          console.log(`[FaceVerification] Face match failed, retrying (${currentRetry}/${MAX_FACE_RETRIES})...`);
-          setError(`Face does not match. Retrying... (Attempt ${currentRetry + 1})`);
-          setTimeout(() => {
-            handleCaptureFace(true);
-          }, 1500);
-        } else {
-          // Max retries reached, move to next step
-          console.log('[FaceVerification] Max retries reached, moving to next step');
-          setError('Face verification failed. Moving to next step...');
-          setFaceStatus('failed');
-          setTimeout(() => {
-            proceedToNextStep();
-          }, 2000);
-        }
-      }
-    } catch (err: any) {
-      console.error('Face verification error:', err);
-      faceRetryCountRef.current += 1;
-      const currentRetry = faceRetryCountRef.current;
-      
-      if (currentRetry <= MAX_FACE_RETRIES) {
-        // Retry on error
-        console.log(`[FaceVerification] Face verification error, retrying (${currentRetry}/${MAX_FACE_RETRIES})...`);
-        setError(`Error occurred. Retrying... (Attempt ${currentRetry + 1})`);
-        setFaceStatus('idle');
-        setTimeout(() => {
-          handleCaptureFace(true);
-        }, 1500);
-      } else {
-        // Max retries reached, move to next step
-        console.log('[FaceVerification] Max retries reached after error, moving to next step');
-        setError('Face verification failed. Moving to next step...');
-        setFaceStatus('failed');
-        setTimeout(() => {
-          proceedToNextStep();
-        }, 2000);
-      }
+    setStatus('capturing_face');
+    
+    // Small delay to let UI update
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Step 1: Capture initial face image
+    setCurrentInstruction('Look straight at the camera');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const faceImage = await captureFrame();
+    if (!faceImage) {
+      setError('Failed to capture face image');
+      setStatus('failed');
+      setTimeout(() => onComplete(), 3000);
+      return;
     }
+    
+    console.log('[SecureVerification] Captured initial face image');
+    
+    // Step 2: Perform liveness actions
+    setStatus('liveness');
+    const frames = await performLivenessActions();
+    
+    // Step 3: Send to backend for verification
+    await verify(faceImage, frames);
   };
 
-  const startLivenessCheck = () => {
-    setLivenessStatus('capturing');
-    setCapturedFrames([]);
-    performLivenessChecks();
-  };
-
-  const [countdown, setCountdown] = useState<number | null>(null);
-
-  const performLivenessChecks = async () => {
+  /**
+   * Perform liveness actions and capture frames
+   */
+  const performLivenessActions = async (): Promise<Blob[]> => {
     const instructions = [
-      { text: 'Please blink your eyes naturally', duration: 3000, captureCount: 6, readTime: 1500 },
-      { text: 'Turn your head slowly to the left', duration: 2500, captureCount: 5, readTime: 1500 },
-      { text: 'Turn your head slowly to the right', duration: 2500, captureCount: 5, readTime: 1500 },
-      { text: 'Please smile', duration: 2000, captureCount: 4, readTime: 1200 },
-      { text: 'Look straight at the camera', duration: 1500, captureCount: 3, readTime: 1000 },
+      { text: 'Please blink your eyes naturally', duration: 3000, captureCount: 6 },
+      { text: 'Turn your head slowly to the left', duration: 2500, captureCount: 5 },
+      { text: 'Turn your head slowly to the right', duration: 2500, captureCount: 5 },
+      { text: 'Please smile', duration: 2000, captureCount: 4 },
+      { text: 'Look straight at the camera', duration: 1500, captureCount: 3 },
     ];
 
     const frames: Blob[] = [];
@@ -203,8 +121,8 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
     for (let i = 0; i < instructions.length; i++) {
       const instruction = instructions[i];
       
-      // Show instruction with "Get Ready" countdown
-      setCurrentInstruction(`${instruction.text}`);
+      // Show instruction with countdown
+      setCurrentInstruction(instruction.text);
       setCountdown(3);
       await new Promise(resolve => setTimeout(resolve, 800));
       setCountdown(2);
@@ -213,62 +131,60 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
       await new Promise(resolve => setTimeout(resolve, 800));
       setCountdown(null);
       
-      // Now show "Do it now!" and start capturing
+      // Start capturing
       setCurrentInstruction(`${instruction.text} - NOW!`);
       
-      // Capture multiple frames during each action to detect movement
       const captureInterval = instruction.duration / instruction.captureCount;
       
       for (let j = 0; j < instruction.captureCount; j++) {
-        // Capture frame
-        const frame = await captureFaceImage();
+        const frame = await captureFrame();
         if (frame) {
           frames.push(frame);
         }
         
-        // Wait before next capture (except for last frame)
         if (j < instruction.captureCount - 1) {
           await new Promise(resolve => setTimeout(resolve, captureInterval));
         }
       }
       
-      // Brief pause between instructions
       await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    setCapturedFrames(frames);
-    setLivenessStatus('verifying');
+    console.log(`[SecureVerification] Captured ${frames.length} liveness frames`);
+    return frames;
+  };
 
+  /**
+   * Send verification request to backend
+   */
+  const verify = async (faceImage: Blob, frames: Blob[]) => {
+    setStatus('verifying');
+    setCurrentInstruction('Verifying identity...');
+    
     try {
-      const result = await kycApiService.runLivenessCheck(sessionId, frames);
-
+      const result = await kycApiService.runSecureVerification(
+        sessionId,
+        documentId,
+        faceImage,
+        frames
+      );
+      
+      setResult(result);
+      
       if (result.overallResult) {
-        setLivenessResult(result);
-        setLivenessStatus('verified');
-        onLivenessVerified();
-        setTimeout(() => {
-          // All verifications complete
-          console.log('[FaceVerification] Liveness check passed, completing...');
-          onComplete();
-        }, 2000);
+        onVerified();
+        setStatus('success');
+        setTimeout(() => onComplete(), 3000);
       } else {
-        setError('Liveness check could not be verified.');
-        setLivenessStatus('failed');
-        // Auto-proceed after showing result
-        setTimeout(() => {
-          console.log('[FaceVerification] Liveness check failed, proceeding to complete...');
-          onComplete();
-        }, 3000);
+        setError(result.message);
+        setStatus('failed');
+        setTimeout(() => onComplete(), 4000);
       }
     } catch (err: any) {
-      console.error('Liveness check error:', err);
-      setError(err.message || 'Failed to perform liveness check');
-      setLivenessStatus('failed');
-      // Auto-proceed after showing error
-      setTimeout(() => {
-        console.log('[FaceVerification] Liveness check error, proceeding to complete...');
-        onComplete();
-      }, 3000);
+      console.error('[SecureVerification] Verification error:', err);
+      setError(err.message || 'Verification failed');
+      setStatus('failed');
+      setTimeout(() => onComplete(), 3000);
     }
   };
 
@@ -287,143 +203,146 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
               maxWidth: '400px',
               borderRadius: '10px',
               transform: 'scaleX(-1)',
-              border: '3px solid #4caf50'
+              border: status === 'liveness' ? '3px solid #ff9800' : '3px solid #4caf50'
             }}
           />
-          <p className="video-label">Live Camera</p>
+          <p className="video-label">
+            {status === 'liveness' ? '🔴 Recording' : 'Live Camera'}
+          </p>
         </div>
       )}
       
       <div className="face-card">
-        {step === 'face' && (
+        {/* Initial state - show instructions */}
+        {status === 'idle' && (
           <>
-            <h2>👤 Face Verification</h2>
-            <p>We'll compare your live face with the photo on your document.</p>
-
-            {faceStatus === 'idle' && (
-              <>
-                <div className="face-instructions">
-                  <ul>
-                    <li>✓ Look directly at the camera</li>
-                    <li>✓ Ensure your face is well-lit</li>
-                    <li>✓ Remove glasses if possible</li>
-                    <li>✓ Keep a neutral expression</li>
-                  </ul>
-                </div>
-                <button className="btn-primary" onClick={() => handleCaptureFace()}>
-                  Capture Face
-                </button>
-              </>
-            )}
-
-            {faceStatus === 'capturing' && (
-              <div className="status-message">
-                <div className="spinner"></div>
-                <p>Capturing face image...</p>
-              </div>
-            )}
-
-            {faceStatus === 'verifying' && (
-              <div className="status-message">
-                <div className="spinner"></div>
-                <p>Verifying face match...</p>
-              </div>
-            )}
-
-            {faceStatus === 'verified' && faceResult && (
-              <div className="status-message success">
-                <span className="icon">✓</span>
-                <p>Face verified successfully!</p>
-                <p><strong>Match Score:</strong> {(faceResult.matchScore * 100).toFixed(1)}%</p>
-                <p><strong>Confidence:</strong> {(faceResult.confidence * 100).toFixed(1)}%</p>
-              </div>
-            )}
-
-            {faceStatus === 'failed' && (
-              <div className="status-message error">
-                <span className="icon">⚠️</span>
-                <p>{error}</p>
-              </div>
-            )}
+            <div className="face-instructions">
+              <ul>
+                <li>✓ Ensure your face is well-lit</li>
+                <li>✓ Look directly at the camera</li>
+                <li>✓ Remove glasses if possible</li>
+                <li>✓ Be prepared to follow instructions</li>
+                <li>✓ The process takes about 25-30 seconds</li>
+              </ul>
+            </div>
+            <button className="btn-primary" onClick={startVerification} disabled={loading}>
+              Start Verification
+            </button>
           </>
         )}
 
-        {step === 'liveness' && (
-          <>
-            <h2>🎭 Liveness Check</h2>
-            <p>Please follow the on-screen instructions to verify you're a real person.</p>
+        {/* Capturing initial face */}
+        {status === 'capturing_face' && (
+          <div className="status-message">
+            <div className="spinner"></div>
+            <p className="instruction-text">{currentInstruction}</p>
+            <p className="hint-text">Capturing your face...</p>
+          </div>
+        )}
 
-            {livenessStatus === 'instructions' && (
-              <>
-                <div className="liveness-instructions">
-                  <p>You will be asked to perform the following actions:</p>
-                  <ul>
-                    <li>Blink your eyes</li>
-                    <li>Turn your head left and right</li>
-                    <li>Smile</li>
-                    <li>Look at the camera</li>
-                  </ul>
-                  <p><strong>This will take about 25-30 seconds.</strong></p>
-                </div>
-                <button className="btn-primary" onClick={startLivenessCheck}>
-                  Start Liveness Check
-                </button>
-              </>
-            )}
-
-            {livenessStatus === 'capturing' && (
-              <div className="status-message">
-                {countdown !== null ? (
-                  <div className="countdown-display">
-                    <div className="countdown-number">{countdown}</div>
-                    <div className="countdown-instruction">{currentInstruction}</div>
-                    <p className="countdown-hint">Get ready...</p>
-                  </div>
-                ) : (
-                  <div className="liveness-instruction-large">
-                    <div className="action-now">{currentInstruction}</div>
-                    <div className="recording-indicator">
-                      <span className="recording-dot"></span>
-                      Recording...
-                    </div>
-                  </div>
-                )}
+        {/* Liveness actions */}
+        {status === 'liveness' && (
+          <div className="status-message">
+            {countdown !== null ? (
+              <div className="countdown-display">
+                <div className="countdown-number">{countdown}</div>
+                <div className="countdown-instruction">{currentInstruction}</div>
+                <p className="countdown-hint">Get ready...</p>
               </div>
-            )}
-
-            {livenessStatus === 'verifying' && (
-              <div className="status-message">
-                <div className="spinner"></div>
-                <p>Analyzing liveness checks...</p>
-              </div>
-            )}
-
-            {livenessStatus === 'verified' && livenessResult && (
-              <div className="status-message success">
-                <span className="icon">✓</span>
-                <p>Liveness check passed!</p>
-                <p><strong>Confidence:</strong> {(livenessResult.confidenceScore * 100).toFixed(1)}%</p>
-                <div className="liveness-checks">
-                  {livenessResult.checks.map((check: any, index: number) => (
-                    <div key={index} className="check-item">
-                      <span className={check.result ? 'check-pass' : 'check-fail'}>
-                        {check.result ? '✓' : '✗'}
-                      </span>
-                      {check.type.replace('_', ' ')}
-                    </div>
-                  ))}
+            ) : (
+              <div className="liveness-instruction-large">
+                <div className="action-now">{currentInstruction}</div>
+                <div className="recording-indicator">
+                  <span className="recording-dot"></span>
+                  Recording...
                 </div>
               </div>
             )}
+          </div>
+        )}
 
-            {livenessStatus === 'failed' && (
-              <div className="status-message error">
-                <span className="icon">⚠️</span>
-                <p>{error}</p>
-                <p className="proceeding-message">Proceeding to next step...</p>
+        {/* Verifying */}
+        {status === 'verifying' && (
+          <div className="status-message">
+            <div className="spinner"></div>
+            <p>{currentInstruction}</p>
+            <p className="hint-text">Checking face match, liveness, and consistency...</p>
+          </div>
+        )}
+
+        {/* Success */}
+        {status === 'success' && result && (
+          <div className="status-message success">
+            <span className="icon">✓</span>
+            <p>Verification Successful!</p>
+            
+            <div className="verification-details">
+              <div className="detail-item">
+                <span className={result.faceMatch.isMatch ? 'check-pass' : 'check-fail'}>
+                  {result.faceMatch.isMatch ? '✓' : '✗'}
+                </span>
+                <span>Face Match: {(result.faceMatch.matchScore * 100).toFixed(0)}%</span>
+              </div>
+              <div className="detail-item">
+                <span className={result.liveness.overallResult ? 'check-pass' : 'check-fail'}>
+                  {result.liveness.overallResult ? '✓' : '✗'}
+                </span>
+                <span>Liveness: {(result.liveness.confidenceScore * 100).toFixed(0)}%</span>
+              </div>
+              <div className="detail-item">
+                <span className={result.faceConsistency.isConsistent ? 'check-pass' : 'check-fail'}>
+                  {result.faceConsistency.isConsistent ? '✓' : '✗'}
+                </span>
+                <span>Consistency: {(result.faceConsistency.consistencyScore * 100).toFixed(0)}%</span>
+              </div>
+            </div>
+            
+            {result.liveness.checks.length > 0 && (
+              <div className="liveness-checks">
+                {result.liveness.checks.map((check, index) => (
+                  <div key={index} className="check-item">
+                    <span className={check.result ? 'check-pass' : 'check-fail'}>
+                      {check.result ? '✓' : '✗'}
+                    </span>
+                    {check.type.replace(/_/g, ' ')}
+                  </div>
+                ))}
               </div>
             )}
-          </>
+          </div>
+        )}
+
+        {/* Failed */}
+        {status === 'failed' && (
+          <div className="status-message error">
+            <span className="icon">⚠️</span>
+            <p>{error}</p>
+            
+            {result && (
+              <div className="verification-details failure">
+                <div className="detail-item">
+                  <span className={result.faceMatch.isMatch ? 'check-pass' : 'check-fail'}>
+                    {result.faceMatch.isMatch ? '✓' : '✗'}
+                  </span>
+                  <span>Face Match</span>
+                </div>
+                <div className="detail-item">
+                  <span className={result.liveness.overallResult ? 'check-pass' : 'check-fail'}>
+                    {result.liveness.overallResult ? '✓' : '✗'}
+                  </span>
+                  <span>Liveness</span>
+                </div>
+                <div className="detail-item">
+                  <span className={result.faceConsistency.isConsistent ? 'check-pass' : 'check-fail'}>
+                    {result.faceConsistency.isConsistent ? '✓' : '✗'}
+                  </span>
+                  <span>Consistency</span>
+                </div>
+              </div>
+            )}
+            
+            <p className="proceeding-message">Proceeding to next step...</p>
+          </div>
         )}
       </div>
     </div>
@@ -431,4 +350,3 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
 };
 
 export default FaceVerification;
-

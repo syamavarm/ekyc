@@ -9,8 +9,7 @@ import {
   ConsentData,
   LocationData,
   DocumentData,
-  FaceVerificationData,
-  LivenessCheckData,
+  SecureVerificationData,
   QuestionnaireData,
   VerificationResults,
 } from '../types/kyc.types';
@@ -58,8 +57,7 @@ export class KYCSessionManager {
       },
       verificationResults: {
         documentVerified: false,
-        faceVerified: false,
-        livenessVerified: false,
+        secureVerified: false,
         locationVerified: false,
         overallVerified: false,
       },
@@ -197,52 +195,27 @@ export class KYCSessionManager {
   }
 
   /**
-   * Update face verification data
+   * Update secure verification data (combined face + liveness + consistency)
    */
-  updateFaceVerification(
+  updateSecureVerification(
     sessionId: string,
-    faceVerification: FaceVerificationData
+    secureVerification: SecureVerificationData
   ): boolean {
     const session = this.sessions.get(sessionId);
     if (!session) return false;
     
-    session.faceVerification = faceVerification;
+    session.secureVerification = secureVerification;
     
-    if (faceVerification.isMatch) {
-      session.verificationResults.faceVerified = true;
-      session.status = 'face_verified';
+    if (secureVerification.overallResult) {
+      session.verificationResults.secureVerified = true;
+      session.status = 'secure_verified';
     } else {
-      session.status = 'face_verification_pending';
+      session.status = 'secure_verification_pending';
     }
     
     session.updatedAt = new Date();
     
-    console.log(`[KYCSessionManager] Face verification updated for session: ${sessionId}`);
-    return true;
-  }
-
-  /**
-   * Update liveness check data
-   */
-  updateLivenessCheck(
-    sessionId: string,
-    livenessCheck: LivenessCheckData
-  ): boolean {
-    const session = this.sessions.get(sessionId);
-    if (!session) return false;
-    
-    session.livenessCheck = livenessCheck;
-    
-    if (livenessCheck.overallResult) {
-      session.verificationResults.livenessVerified = true;
-      session.status = 'liveness_verified';
-    } else {
-      session.status = 'liveness_check_pending';
-    }
-    
-    session.updatedAt = new Date();
-    
-    console.log(`[KYCSessionManager] Liveness check updated for session: ${sessionId}`);
+    console.log(`[KYCSessionManager] Secure verification updated for session: ${sessionId}`);
     return true;
   }
 
@@ -280,8 +253,7 @@ export class KYCSessionManager {
     requiredSteps: {
       locationCapture: boolean;
       documentOCR: boolean;
-      faceMatch: boolean;
-      livenessCheck: boolean;
+      secureVerification: boolean;
       questionnaire: boolean;
     };
   } {
@@ -293,16 +265,14 @@ export class KYCSessionManager {
         message: 'Session not found',
         verificationResults: {
           documentVerified: false,
-          faceVerified: false,
-          livenessVerified: false,
+          secureVerified: false,
           locationVerified: false,
           overallVerified: false,
         },
         requiredSteps: {
           locationCapture: true,
           documentOCR: true,
-          faceMatch: true,
-          livenessCheck: true,
+          secureVerification: true,
           questionnaire: false,
         },
       };
@@ -316,8 +286,7 @@ export class KYCSessionManager {
     const requiredSteps = {
       locationCapture: workflowSteps?.locationCapture ?? true,
       documentOCR: workflowSteps?.documentOCR ?? true,
-      faceMatch: workflowSteps?.faceMatch ?? true,
-      livenessCheck: workflowSteps?.livenessCheck ?? true,
+      secureVerification: workflowSteps?.secureVerification ?? true,
       questionnaire: workflowSteps?.questionnaire ?? false,
     };
     
@@ -349,20 +318,10 @@ export class KYCSessionManager {
       }
     }
     
-    // Face match check - only if required
-    if (requiredSteps.faceMatch) {
+    // Secure verification check (combined face + liveness) - only if required
+    if (requiredSteps.secureVerification) {
       totalChecks++;
-      if (results.faceVerified) {
-        score++;
-      } else {
-        allRequiredVerified = false;
-      }
-    }
-    
-    // Liveness check - only if required
-    if (requiredSteps.livenessCheck) {
-      totalChecks++;
-      if (results.livenessVerified) {
+      if (results.secureVerified) {
         score++;
       } else {
         allRequiredVerified = false;
@@ -533,31 +492,11 @@ export class KYCSessionManager {
       };
     }
     
-    // Create lean face verification (without buffers)
-    let leanFaceVerification = session.faceVerification;
-    if (leanFaceVerification?.capturedImageBuffer) {
-      const { capturedImageBuffer, ...faceWithoutBuffer } = leanFaceVerification;
-      leanFaceVerification = {
-        ...faceWithoutBuffer,
-        hasCapturedImage: true,
-      };
-    }
-    
-    // Create lean liveness data (without video frames if stored)
-    let leanLivenessCheck = session.livenessCheck;
-    if (leanLivenessCheck?.videoFrames && leanLivenessCheck.videoFrames.length > 0) {
-      const { videoFrames, ...livenessWithoutFrames } = leanLivenessCheck;
-      leanLivenessCheck = {
-        ...livenessWithoutFrames,
-        frameCount: videoFrames.length,
-      };
-    }
+    // Secure verification data is already lean (no binary data)
     
     return {
       ...sessionWithoutDoc,
       document: leanDocument,
-      faceVerification: leanFaceVerification as FaceVerificationData | undefined,
-      livenessCheck: leanLivenessCheck as LivenessCheckData | undefined,
     };
   }
 }

@@ -25,8 +25,7 @@ export type WorkflowStep =
 interface WorkflowSteps {
   locationCapture: boolean;
   documentOCR: boolean;
-  faceMatch: boolean;
-  livenessCheck: boolean;
+  secureVerification: boolean;
   questionnaire: boolean;
   locationRadiusKm?: number;
 }
@@ -96,37 +95,30 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     
     if (!workflowSteps) {
       // If no workflow config, return all steps (default flow)
-      // Location now comes after document verification
       return ['consent', 'video_call', 'document', 'location', 'face', 'questionnaire', 'completion'];
     }
     
-    // Determine if face step can actually do something useful:
-    // - Face match requires document (documentOCR must be enabled)
-    // - Liveness check doesn't require document
-    const canDoFaceMatch = workflowSteps.faceMatch && workflowSteps.documentOCR;
-    const canDoLiveness = workflowSteps.livenessCheck;
-    const faceStepHasWork = canDoFaceMatch || canDoLiveness;
+    // Secure verification requires document (for face matching)
+    const canDoSecureVerification = workflowSteps.secureVerification && workflowSteps.documentOCR;
     
-    // Add video_call if document or face step has work
-    const needsCamera = workflowSteps.documentOCR || faceStepHasWork;
+    // Add video_call if document or secure verification is enabled
+    const needsCamera = workflowSteps.documentOCR || canDoSecureVerification;
     if (needsCamera) {
       steps.push('video_call');
     }
     
-    // Add document if enabled (before location now)
+    // Add document if enabled (before location)
     if (workflowSteps.documentOCR) {
       steps.push('document');
     }
     
     // Add location AFTER document if enabled
-    // This allows us to compare user's location with document address
     if (workflowSteps.locationCapture) {
       steps.push('location');
     }
     
-    // Add face verification step only if it can do something useful
-    // (either face match with document, or liveness check)
-    if (faceStepHasWork) {
+    // Add secure verification step (combined face + liveness)
+    if (canDoSecureVerification) {
       steps.push('face');
     }
     
@@ -139,7 +131,6 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     steps.push('completion');
     
     console.log('[EKYCWorkflow] Enabled steps:', steps, 'Config:', workflowSteps);
-    console.log('[EKYCWorkflow] Face step analysis - canDoFaceMatch:', canDoFaceMatch, 'canDoLiveness:', canDoLiveness);
     
     return steps;
   };
@@ -316,20 +307,15 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     moveToNextStep(nextStep);
   };
 
-  const handleFaceVerified = () => {
-    // Face verified, but liveness check still needs to be done in same component
-    console.log('Face verified, waiting for liveness check...');
+  const handleSecureVerified = () => {
+    // Secure verification passed (face match + liveness + consistency)
+    console.log('[EKYCWorkflow] Secure verification passed');
   };
 
-  const handleLivenessVerified = () => {
-    // Liveness check passed (callback for logging/tracking)
-    console.log('[EKYCWorkflow] Liveness check verified');
-  };
-
-  const handleFaceStepComplete = () => {
-    // Face verification step is complete (face match and/or liveness based on config)
+  const handleSecureVerificationComplete = () => {
+    // Secure verification step is complete
     const nextStep = getNextStep('face');
-    console.log('[EKYCWorkflow] Face step complete, moving to:', nextStep);
+    console.log('[EKYCWorkflow] Secure verification complete, moving to:', nextStep);
     moveToNextStep(nextStep);
   };
 
@@ -387,31 +373,13 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
         // Determine the next step to show correct button text
         const nextStepAfterVideo = getNextStep('video_call');
         
-        // Determine accurate button label based on what's actually enabled AND possible
+        // Determine accurate button label based on what's actually enabled
         const getVideoCallButtonLabel = (): string => {
           if (nextStepAfterVideo === 'document') {
             return 'Start Document Verification';
           }
           if (nextStepAfterVideo === 'face') {
-            // Check what's actually going to happen in the face step
-            const configHasFaceMatch = !workflowSteps || workflowSteps.faceMatch;
-            const hasLiveness = !workflowSteps || workflowSteps.livenessCheck;
-            // Face match requires document step to be in the flow
-            const documentInFlow = !workflowSteps || workflowSteps.documentOCR;
-            const canDoFaceMatch = configHasFaceMatch && documentInFlow;
-            
-            if (!canDoFaceMatch && hasLiveness) {
-              // Face match not possible (no document), only liveness
-              return 'Start Liveness Check';
-            }
-            if (canDoFaceMatch && hasLiveness) {
-              return 'Start Face & Liveness Check';
-            }
-            if (canDoFaceMatch) {
-              return 'Start Face Verification';
-            }
-            // Fallback - shouldn't happen but handle gracefully
-            return 'Continue';
+            return 'Start Face & Liveness Check';
           }
           if (nextStepAfterVideo === 'questionnaire') {
             return 'Start Questionnaire';
@@ -473,15 +441,11 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
         );
 
       case 'face':
-        // Face match can only be performed if:
-        // 1. It's required by config (or no config = default all enabled)
-        // 2. AND we actually have a document to compare against
-        const configRequiresFaceMatch = !workflowSteps || workflowSteps.faceMatch;
-        const canPerformFaceMatch = configRequiresFaceMatch && !!state.documentId;
-        
-        // Log if face match was requested but can't be done
-        if (configRequiresFaceMatch && !state.documentId) {
-          console.warn('[EKYCWorkflow] Face match enabled but no document available - will skip to liveness');
+        // Secure verification requires a document ID
+        if (!state.documentId) {
+          console.error('[EKYCWorkflow] Secure verification requires document - skipping');
+          handleSecureVerificationComplete();
+          return null;
         }
         
         return (
@@ -489,12 +453,9 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
             sessionId={state.sessionId}
             documentId={state.documentId}
             videoStream={localStream}
-            onFaceVerified={handleFaceVerified}
-            onLivenessVerified={handleLivenessVerified}
-            onComplete={handleFaceStepComplete}
+            onVerified={handleSecureVerified}
+            onComplete={handleSecureVerificationComplete}
             loading={loading}
-            requireFaceMatch={canPerformFaceMatch}
-            requireLivenessCheck={!workflowSteps || workflowSteps.livenessCheck}
           />
         );
 
@@ -524,32 +485,14 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     }
   };
 
-  // Step label formatting for better display - dynamic based on workflow config
+  // Step label formatting for better display
   const getStepLabel = (step: WorkflowStep): string => {
-    // Special handling for 'face' step - show accurate label based on what's enabled AND possible
-    if (step === 'face') {
-      const configHasFaceMatch = !workflowSteps || workflowSteps.faceMatch;
-      const hasLiveness = !workflowSteps || workflowSteps.livenessCheck;
-      // Face match can only happen if document is in the flow
-      const documentInFlow = !workflowSteps || workflowSteps.documentOCR;
-      const canDoFaceMatch = configHasFaceMatch && documentInFlow;
-      
-      if (canDoFaceMatch && hasLiveness) {
-        return 'Face & Liveness';
-      } else if (canDoFaceMatch) {
-        return 'Face Verify';
-      } else if (hasLiveness) {
-        return 'Liveness';
-      }
-      return 'Verification';
-    }
-    
     const labels: Record<WorkflowStep, string> = {
       'consent': 'Consent',
       'location': 'Location',
       'video_call': 'Camera',
       'document': 'Document',
-      'face': 'Face Verify', // fallback, handled above
+      'face': 'Face & Liveness',
       'questionnaire': 'Questions',
       'completion': 'Complete',
     };
