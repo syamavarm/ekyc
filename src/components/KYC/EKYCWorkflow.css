@@ -1,24 +1,669 @@
 /* eKYC Workflow Styles */
 
-.ekyc-workflow {
+/* ============================================
+   LIGHT THEME - New Layout
+   ============================================ */
+
+.ekyc-workflow.ekyc-light {
+  min-height: 100vh;
+  background: #F7F7F7;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Full page step (consent, completion) - centered layout */
+.ekyc-workflow.ekyc-light.full-page-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.ekyc-light .ekyc-centered-content {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ekyc-light .ekyc-centered-content .consent-screen,
+.ekyc-light .ekyc-centered-content .completion-screen {
+  width: 100%;
+}
+
+.ekyc-light .ekyc-centered-content .consent-card,
+.ekyc-light .ekyc-centered-content .completion-card {
+  background: #FFFFFF;
+  border-radius: 12px;
+  border: 1px solid #E5E5E5;
+  padding: 32px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.ekyc-light .ekyc-centered-content .error-banner-light {
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+/* Recording Badge - Top Right */
+.ekyc-light .recording-badge {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #DC2626;
+  letter-spacing: 0.5px;
+  z-index: 100;
+}
+
+.ekyc-light .recording-badge .recording-dot {
+  width: 8px;
+  height: 8px;
+  background: #DC2626;
+  border-radius: 50%;
+  animation: pulse-rec 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse-rec {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.1); }
+}
+
+/* Main Layout Grid */
+.ekyc-light .ekyc-main-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+  background: #FFFFFF;
+  overflow: hidden;
+}
+
+/* Video Section - Left */
+.ekyc-light .ekyc-video-section {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+}
+
+.ekyc-light .video-preview-container {
+  position: relative;
+  background: #1a1a1a;
+  overflow: hidden;
+  flex: 1;
+  min-height: 400px;
+}
+
+.ekyc-light .main-video-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.ekyc-light .video-overlay-badge {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.ekyc-light .live-dot {
+  width: 6px;
+  height: 6px;
+  background: #22C55E;
+  border-radius: 50%;
+  animation: pulse-live 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.ekyc-light .video-placeholder {
+  background: #F7F7F7;
+  flex: 1;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #9CA3AF;
+}
+
+.ekyc-light .video-placeholder svg {
+  opacity: 0.5;
+}
+
+.ekyc-light .video-placeholder span {
+  font-size: 14px;
+}
+
+/* Document mode - no mirror transform */
+.ekyc-light .main-video-preview.no-mirror {
+  transform: none;
+}
+
+/* ID Card Overlay for document step */
+.ekyc-light .id-card-overlay-main {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.ekyc-light .id-card-frame-main {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 65%;
+  aspect-ratio: 1.586 / 1;
+  border: 3px solid #3B82F6;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+}
+
+.ekyc-light .id-card-frame-main .corner-marker {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border-color: #3B82F6;
+  border-style: solid;
+  border-width: 0;
+}
+
+.ekyc-light .id-card-frame-main .corner-marker.top-left {
+  top: -2px;
+  left: -2px;
+  border-top-width: 4px;
+  border-left-width: 4px;
+  border-top-left-radius: 12px;
+}
+
+.ekyc-light .id-card-frame-main .corner-marker.top-right {
+  top: -2px;
+  right: -2px;
+  border-top-width: 4px;
+  border-right-width: 4px;
+  border-top-right-radius: 12px;
+}
+
+.ekyc-light .id-card-frame-main .corner-marker.bottom-left {
+  bottom: -2px;
+  left: -2px;
+  border-bottom-width: 4px;
+  border-left-width: 4px;
+  border-bottom-left-radius: 12px;
+}
+
+.ekyc-light .id-card-frame-main .corner-marker.bottom-right {
+  bottom: -2px;
+  right: -2px;
+  border-bottom-width: 4px;
+  border-right-width: 4px;
+  border-bottom-right-radius: 12px;
+}
+
+.ekyc-light .card-hint-main {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.ekyc-light .card-hint-main span {
+  background: rgba(59, 130, 246, 0.9);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Video Bottom Overlay - Agent + Instruction */
+.ekyc-light .video-bottom-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+
+/* Agent Overlay - Video call PIP style in bottom-left corner */
+.ekyc-light .agent-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  width: 280px;
+  height: 200px;
+  border-radius: 0 12px 0 0;
+  border: 2px solid rgba(59, 130, 246, 0.5);
+  border-left: none;
+  border-bottom: none;
+  box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  animation: agent-speaking 2s ease-in-out infinite;
+}
+
+@keyframes agent-speaking {
+  0%, 100% { 
+    border-color: rgba(59, 130, 246, 0.5);
+    box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.15), 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+  50% { 
+    border-color: rgba(96, 165, 250, 0.8);
+    box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.15), 0 0 20px 4px rgba(59, 130, 246, 0.3);
+  }
+}
+
+.ekyc-light .agent-avatar {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.2) 0%, rgba(30, 64, 175, 0.3) 100%);
+  color: rgba(255, 255, 255, 0.95);
+  position: relative;
+}
+
+.ekyc-light .agent-avatar::after {
+  content: '';
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  width: 40px;
+  height: 16px;
+  background: 
+    radial-gradient(circle at 20%, #22C55E 4px, transparent 4px),
+    radial-gradient(circle at 50%, #22C55E 4px, transparent 4px),
+    radial-gradient(circle at 80%, #22C55E 4px, transparent 4px);
+  animation: voice-wave 1s ease-in-out infinite;
+}
+
+@keyframes voice-wave {
+  0%, 100% { 
+    background-size: 100% 8px, 100% 16px, 100% 8px;
+  }
+  25% { 
+    background-size: 100% 12px, 100% 8px, 100% 14px;
+  }
+  50% { 
+    background-size: 100% 16px, 100% 10px, 100% 8px;
+  }
+  75% { 
+    background-size: 100% 10px, 100% 14px, 100% 12px;
+  }
+}
+
+.ekyc-light .agent-avatar svg {
+  width: 80px;
+  height: 80px;
+  opacity: 0.8;
+}
+
+/* Instruction Overlay - Closed captions/transcript style */
+.ekyc-light .instruction-overlay {
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  padding: 12px 24px;
+  margin: 0 16px 16px 300px;
+  border-radius: 6px;
+  pointer-events: auto;
+}
+
+.ekyc-light .instruction-overlay p {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 400;
+  color: #FFFFFF;
+  text-align: left;
+  line-height: 1.5;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Progress Section - Right sidebar, spans full video height */
+.ekyc-light .ekyc-progress-section {
+  background: #FFFFFF;
+  border-left: 1px solid #E5E5E5;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.ekyc-light .progress-content {
+  flex: 0 0 auto;
+}
+
+.ekyc-light .progress-header {
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.ekyc-light .progress-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  letter-spacing: 0.3px;
+}
+
+.ekyc-light .progress-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Actions area at bottom of progress section */
+.ekyc-light .progress-actions {
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid #F3F4F6;
+}
+
+.ekyc-light .progress-actions .step-content-area {
+  background: transparent;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}
+
+.ekyc-light .progress-actions .error-banner-light {
+  margin-bottom: 12px;
+}
+
+.ekyc-light .checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.ekyc-light .checklist-item.active {
+  background: #EFF6FF;
+}
+
+.ekyc-light .checklist-item.completed {
+  background: #F0FDF4;
+}
+
+.ekyc-light .checklist-marker {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ekyc-light .checklist-item.completed .checklist-marker {
+  color: #22C55E;
+}
+
+.ekyc-light .checklist-item.active .checklist-marker .active-dot {
+  width: 10px;
+  height: 10px;
+  background: #3B82F6;
+  border-radius: 50%;
+  animation: pulse-active 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-active {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+  50% { transform: scale(1.1); box-shadow: 0 0 0 4px rgba(59, 130, 246, 0); }
+}
+
+.ekyc-light .checklist-item.pending .checklist-marker .pending-dot {
+  width: 8px;
+  height: 8px;
+  background: #D4D4D4;
+  border-radius: 50%;
+}
+
+.ekyc-light .checklist-label {
+  font-size: 13px;
+  color: #6B7280;
+}
+
+.ekyc-light .checklist-item.active .checklist-label {
+  color: #1D4ED8;
+  font-weight: 500;
+}
+
+.ekyc-light .checklist-item.completed .checklist-label {
+  color: #15803D;
+}
+
+/* Error Banner */
+.ekyc-light .error-banner-light {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  color: #DC2626;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+/* Step Content Area - within progress section */
+.ekyc-light .step-content-area {
+  background: transparent;
+}
+
+/* Override child component styles for light theme */
+.ekyc-light .video-call-step {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.ekyc-light .video-call-step h2 {
+  display: none;
+}
+
+.ekyc-light .video-call-step p {
+  display: none;
+}
+
+.ekyc-light .video-call-step .video-container {
+  display: none;
+}
+
+.ekyc-light .video-call-step .status-message {
+  text-align: center;
+  padding: 20px;
+}
+
+.ekyc-light .video-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 0;
+}
+
+.ekyc-light .camera-ready-message {
+  text-align: center;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.ekyc-light .camera-ready-message p {
+  color: #4B5563;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Light theme buttons */
+.ekyc-light .btn-primary {
+  background: #2563EB;
+  color: white;
+  border: none;
+  padding: 12px 28px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+}
+
+.ekyc-light .btn-primary:hover:not(:disabled) {
+  background: #1D4ED8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.ekyc-light .btn-primary:disabled {
+  background: #93C5FD;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.ekyc-light .btn-secondary {
+  background: #FFFFFF;
+  color: #374151;
+  border: 1px solid #D4D4D4;
+  padding: 12px 28px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ekyc-light .btn-secondary:hover:not(:disabled) {
+  background: #F9FAFB;
+  border-color: #9CA3AF;
+}
+
+.ekyc-light .btn-capture {
+  background: #2563EB;
+  animation: none;
+}
+
+.ekyc-light .btn-capture:hover:not(:disabled) {
+  background: #1D4ED8;
+}
+
+/* Document verification uses same layout as other video steps */
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .ekyc-light .ekyc-main-layout {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  
+  .ekyc-light .ekyc-main-layout.document-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .ekyc-light .ekyc-progress-section {
+    border-left: none;
+    border-top: 1px solid #E5E5E5;
+  }
+  
+  .ekyc-light .ekyc-video-section {
+    min-height: 300px;
+  }
+  
+  .ekyc-light .video-preview-container {
+    min-height: 300px;
+  }
+  
+  .ekyc-light .ekyc-progress-section {
+    order: 1;
+  }
+  
+  .ekyc-light .progress-checklist {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .ekyc-light .checklist-item {
+    padding: 8px 12px;
+  }
+  
+  .ekyc-light .progress-actions {
+    margin-top: 16px;
+  }
+}
+
+/* ============================================
+   LEGACY DARK THEME - Keep for backwards compatibility
+   ============================================ */
+
+.ekyc-workflow:not(.ekyc-light) {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 20px;
 }
 
-.workflow-header {
+.ekyc-workflow:not(.ekyc-light) .workflow-header {
   text-align: center;
   color: white;
   margin-bottom: 30px;
 }
 
-.workflow-header h1 {
+.ekyc-workflow:not(.ekyc-light) .workflow-header h1 {
   font-size: 2.5rem;
   margin-bottom: 20px;
 }
 
 /* Progress Indicator */
-.progress-indicator {
+.ekyc-workflow:not(.ekyc-light) .progress-indicator {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 15px;
   padding: 20px;
@@ -26,7 +671,7 @@
   max-width: 1000px;
 }
 
-.progress-steps {
+.ekyc-workflow:not(.ekyc-light) .progress-steps {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -34,7 +679,7 @@
   gap: 10px;
 }
 
-.progress-step {
+.ekyc-workflow:not(.ekyc-light) .progress-step {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -42,12 +687,12 @@
   transition: opacity 0.3s;
 }
 
-.progress-step.active,
-.progress-step.completed {
+.ekyc-workflow:not(.ekyc-light) .progress-step.active,
+.ekyc-workflow:not(.ekyc-light) .progress-step.completed {
   opacity: 1;
 }
 
-.step-number {
+.ekyc-workflow:not(.ekyc-light) .step-number {
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -60,16 +705,16 @@
   margin-bottom: 8px;
 }
 
-.progress-step.completed .step-number {
+.ekyc-workflow:not(.ekyc-light) .progress-step.completed .step-number {
   background: #4caf50;
 }
 
-.progress-step.active .step-number {
+.ekyc-workflow:not(.ekyc-light) .progress-step.active .step-number {
   background: #2196f3;
   box-shadow: 0 0 20px rgba(33, 150, 243, 0.5);
 }
 
-.step-label {
+.ekyc-workflow:not(.ekyc-light) .step-label {
   font-size: 0.85rem;
   color: white;
   text-transform: capitalize;
@@ -95,6 +740,809 @@
 
 .error-icon {
   font-size: 1.5rem;
+}
+
+/* ============================================
+   LIGHT THEME - Child Component Overrides
+   ============================================ */
+
+/* Location, Document, Face within light theme */
+.ekyc-light .location-capture,
+.ekyc-light .face-verification {
+  display: block;
+  background: transparent;
+  min-height: auto;
+}
+
+/* Document verification - same layout as other steps */
+.ekyc-light .document-verification {
+  display: block;
+  background: transparent;
+  min-height: auto;
+}
+
+/* Minimal document card - just snapshots and buttons */
+.ekyc-light .document-card-minimal {
+  padding: 0;
+}
+
+.ekyc-light .document-card-minimal h2 {
+  display: none;
+}
+
+.ekyc-light .document-snapshot {
+  position: relative;
+  margin-bottom: 16px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid #E5E5E5;
+  background: #F9FAFB;
+}
+
+.ekyc-light .document-snapshot img {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-height: 280px;
+  object-fit: contain;
+}
+
+.ekyc-light .document-snapshot .snapshot-label {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.ekyc-light .document-snapshots-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ekyc-light .document-snapshots-row .document-snapshot {
+  margin-bottom: 0;
+}
+
+.ekyc-light .document-snapshots-row .document-snapshot img {
+  max-height: 200px;
+}
+
+.ekyc-light .document-card-minimal .document-actions {
+  margin-top: 0;
+}
+
+.ekyc-light .document-card-minimal .status-message {
+  padding: 20px;
+  text-align: center;
+}
+
+.ekyc-light .document-card-minimal .status-message p {
+  margin: 8px 0 0 0;
+  font-size: 14px;
+}
+
+/* Standalone document actions - outside the card */
+.ekyc-light .document-actions-standalone {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+/* Standalone document status - outside the card */
+.ekyc-light .document-status-standalone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  text-align: center;
+}
+
+.ekyc-light .document-status-standalone p {
+  margin: 12px 0 0 0;
+  font-size: 15px;
+  color: #374151;
+}
+
+.ekyc-light .document-status-standalone.success p {
+  color: #059669;
+  font-weight: 500;
+}
+
+/* Standalone location status */
+.ekyc-light .location-status-standalone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  text-align: center;
+}
+
+.ekyc-light .location-status-standalone .location-coords {
+  margin: 0;
+  font-size: 14px;
+  color: #6B7280;
+  font-family: monospace;
+}
+
+.ekyc-light .location-status-standalone.success .location-coords {
+  color: #059669;
+}
+
+.ekyc-light .location-status-standalone.error p {
+  margin: 0;
+  font-size: 14px;
+  color: #DC2626;
+}
+
+/* Standalone face verification actions */
+.ekyc-light .face-actions-standalone {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+/* Standalone face verification status */
+.ekyc-light .face-status-standalone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.ekyc-light .face-status-standalone .countdown-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ekyc-light .face-status-standalone .countdown-number {
+  font-size: 64px;
+  font-weight: 700;
+  color: #2563EB;
+  line-height: 1;
+}
+
+.ekyc-light .face-status-standalone .recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #DC2626;
+}
+
+.ekyc-light .face-status-standalone .recording-dot {
+  width: 10px;
+  height: 10px;
+  background: #DC2626;
+  border-radius: 50%;
+  animation: pulse-recording 1s ease-in-out infinite;
+}
+
+@keyframes pulse-recording {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Hide the video preview in child components - we show it in main layout */
+.ekyc-light .location-capture .live-video-preview,
+.ekyc-light .face-verification .live-video-preview,
+.ekyc-light .document-verification .live-video-preview {
+  display: none;
+}
+
+/* Card styles within light theme */
+.ekyc-light .location-card,
+.ekyc-light .document-card,
+.ekyc-light .face-card {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  max-width: none;
+  border-radius: 0;
+}
+
+.ekyc-light .location-card h2,
+.ekyc-light .document-card h2,
+.ekyc-light .face-card h2 {
+  font-size: 1.25rem;
+  color: #1F2937;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #E5E5E5;
+}
+
+.ekyc-light .location-card p,
+.ekyc-light .document-card p,
+.ekyc-light .face-card p {
+  color: #4B5563;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+/* Status message within light theme */
+.ekyc-light .status-message {
+  text-align: center;
+  padding: 32px 20px;
+  background: #F9FAFB;
+  border-radius: 10px;
+  border: 1px solid #E5E5E5;
+}
+
+.ekyc-light .status-message .spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #E5E5E5;
+  border-top-color: #3B82F6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+
+.ekyc-light .status-message .icon {
+  font-size: 2.5rem;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.ekyc-light .status-message p {
+  color: #374151;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.ekyc-light .status-message small {
+  color: #6B7280;
+  font-size: 13px;
+}
+
+/* Instructions within light theme */
+.ekyc-light .capture-instructions,
+.ekyc-light .face-instructions,
+.ekyc-light .liveness-instructions {
+  background: #F9FAFB;
+  border: 1px solid #E5E5E5;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 16px 0;
+}
+
+.ekyc-light .capture-instructions ul,
+.ekyc-light .face-instructions ul,
+.ekyc-light .liveness-instructions ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ekyc-light .capture-instructions li,
+.ekyc-light .face-instructions li,
+.ekyc-light .liveness-instructions li {
+  padding: 6px 0;
+  color: #4B5563;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Side indicator badges */
+.ekyc-light .side-indicator {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.ekyc-light .side-badge {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 16px;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.8px;
+}
+
+.ekyc-light .side-indicator.front .side-badge {
+  background: #DBEAFE;
+  color: #1D4ED8;
+}
+
+.ekyc-light .side-indicator.back .side-badge {
+  background: #D1FAE5;
+  color: #047857;
+}
+
+/* Document preview within light theme */
+.ekyc-light .document-preview {
+  margin: 16px 0;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #E5E5E5;
+}
+
+.ekyc-light .document-preview img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.ekyc-light .document-preview-both {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin: 16px 0;
+}
+
+.ekyc-light .document-preview-both .preview-item {
+  flex: 1;
+  max-width: 200px;
+  text-align: center;
+}
+
+.ekyc-light .document-preview-both .preview-item small {
+  display: block;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ekyc-light .document-preview-both .preview-item img {
+  width: 100%;
+  border-radius: 8px;
+  border: 2px solid #3B82F6;
+}
+
+/* Captured preview thumbnail */
+.ekyc-light .captured-preview {
+  background: #F9FAFB;
+  border: 1px solid #E5E5E5;
+  padding: 12px;
+  border-radius: 8px;
+  margin: 12px 0;
+  text-align: center;
+}
+
+.ekyc-light .captured-preview small {
+  display: block;
+  color: #6B7280;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.ekyc-light .captured-preview .thumbnail {
+  max-width: 120px;
+  max-height: 80px;
+  border-radius: 6px;
+  border: 2px solid #3B82F6;
+}
+
+/* OCR Results */
+.ekyc-light .ocr-results {
+  background: #F0FDF4;
+  border: 1px solid #BBF7D0;
+  padding: 16px 20px;
+  border-radius: 8px;
+  margin-top: 16px;
+  text-align: left;
+}
+
+.ekyc-light .ocr-results h3 {
+  margin: 0 0 12px 0;
+  color: #15803D;
+  font-size: 14px;
+}
+
+.ekyc-light .ocr-results p {
+  margin: 6px 0;
+  color: #374151;
+  font-size: 13px;
+}
+
+/* Location details */
+.ekyc-light .location-details {
+  background: #F9FAFB;
+  border: 1px solid #E5E5E5;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-top: 12px;
+  text-align: left;
+}
+
+.ekyc-light .location-details p {
+  margin: 4px 0;
+  font-size: 13px;
+  color: #4B5563;
+}
+
+/* Action buttons within light theme */
+.ekyc-light .document-actions,
+.ekyc-light .location-actions,
+.ekyc-light .face-actions,
+.ekyc-light .questionnaire-actions,
+.ekyc-light .completion-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+/* Countdown display */
+.ekyc-light .countdown-display {
+  text-align: center;
+  padding: 24px;
+}
+
+.ekyc-light .countdown-number {
+  font-size: 4rem;
+  font-weight: 700;
+  color: #3B82F6;
+  line-height: 1;
+}
+
+.ekyc-light .countdown-instruction {
+  font-size: 1.1rem;
+  color: #374151;
+  margin: 16px 0 8px;
+  font-weight: 500;
+}
+
+.ekyc-light .countdown-hint {
+  font-size: 0.9rem;
+  color: #6B7280;
+}
+
+/* Get ready instruction */
+.ekyc-light .get-ready-instruction {
+  text-align: center;
+  padding: 20px;
+}
+
+.ekyc-light .get-ready-instruction .pulse-icon {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.ekyc-light .instruction-text {
+  font-size: 1.2rem;
+  color: #1F2937;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.ekyc-light .hint-text {
+  font-size: 0.9rem;
+  color: #6B7280;
+}
+
+/* Liveness instruction large */
+.ekyc-light .liveness-instruction-large {
+  text-align: center;
+  padding: 24px;
+}
+
+.ekyc-light .action-now {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #059669;
+  margin-bottom: 16px;
+}
+
+.ekyc-light .liveness-instruction-large .recording-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #DC2626;
+  font-weight: 500;
+}
+
+/* Consent screen within light theme */
+.ekyc-light .consent-screen {
+  display: block;
+  min-height: auto;
+}
+
+.ekyc-light .consent-card {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  max-width: none;
+}
+
+.ekyc-light .consent-card h2 {
+  font-size: 1.25rem;
+  color: #1F2937;
+  margin-bottom: 12px;
+}
+
+.ekyc-light .consent-intro {
+  color: #4B5563;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.ekyc-light .consent-items {
+  margin-bottom: 24px;
+}
+
+.ekyc-light .consent-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #E5E5E5;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #FFFFFF;
+}
+
+.ekyc-light .consent-item:hover {
+  border-color: #3B82F6;
+  background: #EFF6FF;
+}
+
+.ekyc-light .consent-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: #3B82F6;
+}
+
+.ekyc-light .consent-content h3 {
+  margin: 0 0 4px 0;
+  color: #1F2937;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ekyc-light .consent-content p {
+  margin: 0;
+  color: #6B7280;
+  font-size: 13px;
+}
+
+.ekyc-light .consent-footer {
+  border-top: 1px solid #E5E5E5;
+  padding-top: 20px;
+}
+
+.ekyc-light .consent-note {
+  color: #6B7280;
+  font-size: 12px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.ekyc-light .consent-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+/* Questionnaire screen within light theme */
+.ekyc-light .questionnaire-screen {
+  display: block;
+  min-height: auto;
+}
+
+.ekyc-light .questionnaire-card {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  max-width: none;
+}
+
+.ekyc-light .questionnaire-card h2 {
+  font-size: 1.25rem;
+  color: #1F2937;
+  margin-bottom: 16px;
+}
+
+.ekyc-light .progress-bar {
+  height: 6px;
+  background: #E5E5E5;
+  border-radius: 3px;
+  margin: 16px 0 8px;
+}
+
+.ekyc-light .progress-fill {
+  height: 100%;
+  background: #3B82F6;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.ekyc-light .progress-text {
+  text-align: center;
+  color: #6B7280;
+  font-size: 12px;
+  margin-bottom: 24px;
+}
+
+.ekyc-light .question-container {
+  margin: 24px 0;
+  min-height: 160px;
+}
+
+.ekyc-light .question-text {
+  color: #1F2937;
+  font-size: 1.1rem;
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
+.ekyc-light .question-input,
+.ekyc-light .question-select {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 14px;
+  border: 1px solid #D4D4D4;
+  border-radius: 8px;
+  transition: border-color 0.2s;
+  background: #FFFFFF;
+}
+
+.ekyc-light .question-input:focus,
+.ekyc-light .question-select:focus {
+  outline: none;
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.ekyc-light .yes-no-buttons {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.ekyc-light .yes-no-btn {
+  padding: 16px 48px;
+  font-size: 14px;
+  border: 1px solid #D4D4D4;
+  border-radius: 8px;
+  background: #FFFFFF;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.ekyc-light .yes-no-btn:hover {
+  border-color: #3B82F6;
+  background: #EFF6FF;
+}
+
+.ekyc-light .yes-no-btn.selected {
+  border-color: #3B82F6;
+  background: #3B82F6;
+  color: white;
+}
+
+/* Completion screen within light theme */
+.ekyc-light .completion-screen {
+  display: block;
+  min-height: auto;
+}
+
+.ekyc-light .completion-card {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  max-width: none;
+  text-align: center;
+}
+
+.ekyc-light .completion-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ekyc-light .completion-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #1F2937;
+}
+
+.ekyc-light .success-icon-inline {
+  font-size: 2rem;
+  color: #22C55E;
+}
+
+.ekyc-light .success-message,
+.ekyc-light .warning-message {
+  font-size: 15px;
+  color: #4B5563;
+  margin-bottom: 24px;
+}
+
+.ekyc-light .verification-summary {
+  margin: 24px 0;
+  text-align: left;
+}
+
+.ekyc-light .verification-summary h3 {
+  color: #374151;
+  margin-bottom: 16px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ekyc-light .verification-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ekyc-light .verification-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #F9FAFB;
+  border: 1px solid #E5E5E5;
+}
+
+.ekyc-light .verification-item.pass,
+.ekyc-light .verification-item.completed {
+  background: #F0FDF4;
+  border-color: #BBF7D0;
+  color: #15803D;
+}
+
+.ekyc-light .verification-item.fail {
+  background: #FEF2F2;
+  border-color: #FECACA;
+  color: #DC2626;
+}
+
+.ekyc-light .verification-item .icon {
+  font-size: 1.25rem;
+}
+
+.ekyc-light .session-details {
+  background: #F9FAFB;
+  border: 1px solid #E5E5E5;
+  padding: 16px 20px;
+  border-radius: 8px;
+  margin: 24px 0;
+  text-align: left;
+}
+
+.ekyc-light .session-details h3 {
+  margin: 0 0 12px 0;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ekyc-light .session-details p {
+  margin: 6px 0;
+  color: #6B7280;
+  font-size: 13px;
 }
 
 /* Common Card Styles */

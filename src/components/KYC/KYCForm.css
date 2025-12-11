@@ -1,66 +1,86 @@
+/* KYC Form - Modern Light Theme */
+
 .kyc-form-container {
   width: 100%;
-  max-width: 500px;
+  max-width: 520px;
   margin: 0 auto;
+  padding: 24px;
 }
 
 .kyc-form-card {
-  background: white;
+  background: #FFFFFF;
   border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border: 1px solid #E5E5E5;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
   overflow: hidden;
 }
 
 .kyc-form-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 40px 30px;
+  background: #FFFFFF;
+  padding: 32px 32px 24px;
   text-align: center;
+  border-bottom: 1px solid #F3F4F6;
 }
 
 .kyc-form-header h1 {
-  font-size: 28px;
-  margin-bottom: 10px;
+  font-size: 24px;
+  margin: 0 0 8px 0;
   font-weight: 600;
+  color: #1F2937;
+  letter-spacing: -0.3px;
 }
 
 .kyc-form-header p {
   font-size: 14px;
-  opacity: 0.9;
+  color: #6B7280;
+  margin: 0;
 }
 
 .kyc-form {
-  padding: 40px 30px;
+  padding: 32px;
 }
 
 .form-group {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .form-group label {
   display: block;
   margin-bottom: 8px;
   font-weight: 500;
-  color: #333;
-  font-size: 14px;
+  color: #374151;
+  font-size: 13px;
+  letter-spacing: 0.2px;
 }
 
 .form-group input,
 .form-group select {
   width: 100%;
-  padding: 12px 16px;
-  border: 2px solid #e0e0e0;
+  padding: 12px 14px;
+  border: 1px solid #D4D4D4;
   border-radius: 8px;
-  font-size: 15px;
-  transition: all 0.3s ease;
+  font-size: 14px;
+  transition: all 0.2s ease;
   font-family: inherit;
+  background: #FFFFFF;
+  color: #1F2937;
+}
+
+.form-group input::placeholder {
+  color: #9CA3AF;
 }
 
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-group input:disabled {
+  background: #F9FAFB;
+  color: #6B7280;
+  cursor: not-allowed;
 }
 
 .mobile-input-group {
@@ -73,80 +93,88 @@
 }
 
 .send-otp-btn {
-  padding: 12px 20px;
-  background: #667eea;
+  padding: 12px 18px;
+  background: #3B82F6;
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
 }
 
 .send-otp-btn:hover:not(:disabled) {
-  background: #5568d3;
+  background: #2563EB;
 }
 
 .send-otp-btn:disabled {
-  background: #ccc;
+  background: #D4D4D4;
+  color: #9CA3AF;
   cursor: not-allowed;
 }
 
 .error-message {
-  background: #ffebee;
-  color: #c62828;
-  padding: 12px 16px;
+  background: #FEF2F2;
+  color: #DC2626;
+  padding: 12px 14px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
   margin-bottom: 16px;
-  border-left: 4px solid #c62828;
+  border: 1px solid #FECACA;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .submit-btn {
   width: 100%;
-  padding: 14px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 14px 20px;
+  background: #2563EB;
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 500;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
 }
 
-.submit-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+.submit-btn:hover:not(:disabled) {
+  background: #1D4ED8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
-.submit-btn:active {
+.submit-btn:active:not(:disabled) {
   transform: translateY(0);
 }
 
 .submit-btn:disabled {
-  background: #ccc;
+  background: #D4D4D4;
+  color: #9CA3AF;
   cursor: not-allowed;
-  transform: none;
-}
-
-.submit-btn:disabled:hover {
   transform: none;
   box-shadow: none;
 }
 
 .kyc-form-footer {
-  padding: 20px 30px;
-  background: #f8f9fa;
+  padding: 16px 32px;
+  background: #F9FAFB;
   text-align: center;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid #F3F4F6;
 }
 
-.kyc-form-footer p {
-  font-size: 13px;
-  color: #666;
-  margin: 0;
+.kyc-form-footer .security-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6B7280;
 }
 
+.kyc-form-footer .security-badge svg {
+  color: #9CA3AF;
+}

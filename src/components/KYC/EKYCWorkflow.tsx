@@ -99,6 +99,9 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   // Session recording state - enabled by default for video-KYC, configurable via workflowSteps
   const [isRecordingEnabled] = useState(workflowSteps?.enableSessionRecording !== false); // Default true
   const [isRecordingActive, setIsRecordingActive] = useState(false);
+  
+  // Step instruction - displayed in overlay AND played as audio
+  const [stepInstruction, setStepInstruction] = useState<string>('');
 
   // Calculate enabled steps based on workflow configuration
   // Location capture now comes AFTER document verification to enable address comparison
@@ -148,6 +151,15 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   };
 
   const enabledSteps = getEnabledSteps();
+
+  // Update step instruction - displays in overlay AND plays as audio
+  // waitForAudio: if true, waits for audio to complete before returning
+  const updateStepInstruction = async (instruction: string, playAudio: boolean = true, waitForAudio: boolean = true) => {
+    setStepInstruction(instruction);
+    if (playAudio && isAudioReady()) {
+      await playVoice(instruction, waitForAudio);
+    }
+  };
 
   // Initialize UI event logger when session ID is available
   // The logger persists for the entire session - we don't stop it on component remount
@@ -205,32 +217,26 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     };
   }, [localStream]);
 
-  // Play audio instructions when camera becomes active on video_call step
+  // Set instruction when camera becomes active on video_call step
   useEffect(() => {
-    const playCameraSetupAudio = async () => {
+    const setCameraSetupInstruction = async () => {
       if (state.currentStep === 'video_call' && localStream && !cameraAudioPlayed && !cameraAudioPlaying) {
         setCameraAudioPlaying(true);
         
         // Initialize audio (user already interacted by giving consent)
         await initializeAudio();
         
-        // Play the instruction message
-        const message = "We are starting the identity verification process. " +
+        // Set step instruction (displays and plays audio, waits for completion)
+        const instruction = "We are starting the identity verification process. " +
           "Please ensure you can see yourself clearly in the live view and your face is well lit.";
-        
-        if (isAudioReady()) {
-          await playVoice(message, true);
-        } else {
-          // If audio not available, just wait a moment for user to read
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        }
+        await updateStepInstruction(instruction);
         
         setCameraAudioPlaying(false);
         setCameraAudioPlayed(true);
       }
     };
     
-    playCameraSetupAudio();
+    setCameraSetupInstruction();
   }, [state.currentStep, localStream, cameraAudioPlayed, cameraAudioPlaying]);
 
   // Reset camera audio state when moving away from video_call step
@@ -491,6 +497,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
             documentAddress={state.essentialOcrData?.address}
             locationRadiusKm={workflowSteps?.locationRadiusKm}
             videoStream={localStream}
+            onStepInstruction={updateStepInstruction}
           />
         );
 
@@ -516,8 +523,6 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
         
         return (
           <div className="video-call-step">
-            <h2>📹 Camera Setup</h2>
-            <p>Your camera is active. Please ensure you can see yourself clearly and your face is well-lit.</p>
             {!localStream && (
               <div className="status-message">
                 <div className="spinner"></div>
@@ -525,14 +530,8 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
               </div>
             )}
             {localStream && (
-              <div className="video-container">
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="video-preview"
-                />
+              <div className="camera-ready-message">
+                <p>Camera is active. Ensure you can see yourself clearly.</p>
               </div>
             )}
             <div className="video-actions">
@@ -566,6 +565,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
             videoStream={localStream}
             onDocumentVerified={handleDocumentVerified}
             loading={loading}
+            onStepInstruction={updateStepInstruction}
           />
         );
 
@@ -585,6 +585,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
             onVerified={handleSecureVerified}
             onComplete={handleSecureVerificationComplete}
             loading={loading}
+            onStepInstruction={updateStepInstruction}
           />
         );
 
@@ -626,49 +627,183 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     return labels[step] || step.replace('_', ' ');
   };
 
+  // Get current step instruction text (fallback if stepInstruction not set)
+  const getStepInstruction = (): string => {
+    const instructions: Record<WorkflowStep, string> = {
+      'consent': 'Review and accept the terms to continue',
+      'location': 'Verifying your location',
+      'video_call': 'Ensure you can see yourself clearly and your face is well lit.',
+      'document': 'Hold your document within the frame',
+      'face': 'Follow the on-screen instructions',
+      'questionnaire': 'Answer the verification questions',
+      'completion': 'Verification complete',
+    };
+    return instructions[state.currentStep] || '';
+  };
+
+  // Check if current step uses video
+  const isVideoStep = ['video_call', 'face', 'location', 'document'].includes(state.currentStep);
+  const isDocumentStep = state.currentStep === 'document';
+  const isConsentStep = state.currentStep === 'consent';
+  const isCompletionStep = state.currentStep === 'completion';
+  
+  // Full-page centered steps (no video/progress sidebar)
+  const isFullPageStep = isConsentStep || isCompletionStep;
+
   return (
-    <div className="ekyc-workflow">
-      <div className="workflow-header">
-        <h1>eKYC Verification</h1>
+    <div className={`ekyc-workflow ekyc-light ${isFullPageStep ? 'full-page-step' : ''}`}>
+      {/* Recording indicator - top right */}
         {isRecordingActive && (
-          <div className="recording-indicator">
+        <div className="recording-badge">
             <span className="recording-dot"></span>
-            <span className="recording-text">Recording</span>
-          </div>
-        )}
-        <div className="progress-indicator">
-          <div className="progress-steps">
-            {enabledSteps.map((step, index) => (
+          <span>REC</span>
+        </div>
+      )}
+
+      {/* Full page centered content for consent/completion steps */}
+      {isFullPageStep ? (
+        <div className="ekyc-centered-content">
+          {state.error && (
+            <div className="error-banner-light">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <span>{state.error}</span>
+            </div>
+          )}
+          {renderCurrentStep()}
+        </div>
+      ) : (
+        <>
+          {/* Main layout grid */}
+          <div className="ekyc-main-layout">
+            {/* Left side - Video preview area */}
+            <div className="ekyc-video-section">
+              {isVideoStep && localStream ? (
+                <div className={`video-preview-container ${isDocumentStep ? 'document-mode' : ''}`}>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className={`main-video-preview ${isDocumentStep ? 'no-mirror' : ''}`}
+                  />
+                  <div className="video-overlay-badge">
+                    <span className="live-dot"></span>
+                    LIVE
+                  </div>
+                  
+                  {/* ID Card overlay for document step */}
+                  {isDocumentStep && (
+                    <div className="id-card-overlay-main">
+                      <div className="id-card-frame-main">
+                        <div className="corner-marker top-left"></div>
+                        <div className="corner-marker top-right"></div>
+                        <div className="corner-marker bottom-left"></div>
+                        <div className="corner-marker bottom-right"></div>
+                        <div className="card-hint-main">
+                          <span>Place ID card here</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="video-placeholder">
+                  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M23 7l-7 5 7 5V7z"/>
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                  </svg>
+                  <span>Camera will activate when needed</span>
+                </div>
+              )}
+
+              {/* Agent avatar - PIP style in corner */}
+              {(isVideoStep && localStream) && (
+                <div className="agent-overlay">
+                  <div className="agent-avatar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                      <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                  </div>
+                </div>
+              )}
+
+              {/* Instruction overlay - Closed captions style */}
+              {(isVideoStep && localStream) && (
+                <div className="video-bottom-overlay">
+                  <div className="instruction-overlay">
+                    <p>{stepInstruction || getStepInstruction()}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right side - Progress checklist + Actions */}
+            <div className="ekyc-progress-section">
+              <div className="progress-content">
+                <div className="progress-header">
+                  <span className="progress-title">Progress</span>
+                </div>
+                <div className="progress-checklist">
+                  {enabledSteps.map((step, index) => {
+                    const isCompleted = state.completedSteps.includes(step as WorkflowStep);
+                    const isActive = state.currentStep === step;
+                    const isPending = !isCompleted && !isActive;
+                    
+                    return (
               <div
                 key={step}
-                className={`progress-step ${
-                  state.completedSteps.includes(step as WorkflowStep)
-                    ? 'completed'
-                    : state.currentStep === step
-                    ? 'active'
-                    : ''
-                }`}
-              >
-                <div className="step-number">{index + 1}</div>
-                <div className="step-label">{getStepLabel(step)}</div>
+                        className={`checklist-item ${isCompleted ? 'completed' : ''} ${isActive ? 'active' : ''} ${isPending ? 'pending' : ''}`}
+                      >
+                        <div className="checklist-marker">
+                          {isCompleted ? (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                              <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                          ) : isActive ? (
+                            <div className="active-dot"></div>
+                          ) : (
+                            <div className="pending-dot"></div>
+                          )}
               </div>
-            ))}
+                        <span className="checklist-label">{getStepLabel(step)}</span>
           </div>
+                    );
+                  })}
         </div>
       </div>
 
-      <div className="workflow-content">
+              {/* Actions area at bottom of progress section */}
+              <div className="progress-actions">
+                {/* Error banner */}
         {state.error && (
-          <div className="error-banner">
-            <span className="error-icon">⚠️</span>
-            {state.error}
+                  <div className="error-banner-light">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="12" y1="8" x2="12" y2="12"/>
+                      <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <span>{state.error}</span>
           </div>
         )}
+
+                {/* Step content area */}
+                <div className="step-content-area">
         {renderCurrentStep()}
       </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };
 
 export default EKYCWorkflow;
+
 

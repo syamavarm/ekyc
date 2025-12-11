@@ -184,7 +184,7 @@ const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({
     return (
       <div className="questionnaire-screen">
         <div className="questionnaire-card">
-          <h2>❓ Identity Verification Questions</h2>
+          <h2>Identity Verification Questions</h2>
           <p>Please answer the following questions to verify your identity.</p>
 
           <div className="progress-bar">
@@ -241,7 +241,6 @@ const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({
     return (
       <div className="questionnaire-screen">
         <div className="status-message success">
-          <span className="icon">✓</span>
           <p>Questionnaire completed successfully!</p>
           <p><strong>Score:</strong> {result.questionnaire.score} / {result.questionnaire.questions.length}</p>
           <p>Moving to final step...</p>
@@ -254,7 +253,6 @@ const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({
     return (
       <div className="questionnaire-screen">
         <div className="status-message error">
-          <span className="icon">⚠️</span>
           <p>{error}</p>
           {result && (
             <div className="failed-questions">
@@ -262,16 +260,18 @@ const QuestionnaireScreen: React.FC<QuestionnaireScreenProps> = ({
               {result.questionnaire.questions
                 .filter((q: any) => !q.isCorrect)
                 .map((q: any, index: number) => (
-                  <p key={index}>• {q.question}</p>
+                  <p key={index}>- {q.question}</p>
                 ))}
             </div>
           )}
-          <button className="btn-primary" onClick={loadQuestions}>
-            Try Again
-          </button>
-          <button className="btn-secondary" onClick={onSkip}>
-            Skip Questionnaire
-          </button>
+          <div className="questionnaire-actions">
+            <button className="btn-primary" onClick={loadQuestions}>
+              Try Again
+            </button>
+            <button className="btn-secondary" onClick={onSkip}>
+              Skip Questionnaire
+            </button>
+          </div>
         </div>
       </div>
     );

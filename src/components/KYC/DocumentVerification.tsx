@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import kycApiService from '../../services/kycApiService';
-import { playVoice, isAudioReady, stopAllAudio } from '../../services/audioService';
+import { stopAllAudio } from '../../services/audioService';
 import { uiEventLoggerService } from '../../services/uiEventLoggerService';
 
 interface DocumentVerificationProps {
@@ -8,6 +8,7 @@ interface DocumentVerificationProps {
   videoStream: MediaStream | null;
   onDocumentVerified: (documentId: string, ocrData: any) => void;
   loading: boolean;
+  onStepInstruction?: (instruction: string, playAudio?: boolean, waitForAudio?: boolean) => Promise<void>;
 }
 
 // ID card standard aspect ratio (85.6mm x 53.98mm ≈ 1.586:1)
@@ -28,6 +29,7 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
   videoStream,
   onDocumentVerified,
   loading,
+  onStepInstruction,
 }) => {
   const [step, setStep] = useState<CaptureStep>('capture-front');
   const [documentType] = useState<string>('auto');
@@ -42,9 +44,7 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
   
   const [ocrResults, setOcrResults] = useState<any>(null);
   const [error, setError] = useState<string>('');
-  const [cardDetected, setCardDetected] = useState<boolean>(false);
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const videoContainerRef = useRef<HTMLDivElement>(null);
   
   // Track which steps have had audio played (to avoid replaying on re-renders)
   const audioPlayedRef = useRef<Set<string>>(new Set());
@@ -60,53 +60,45 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
     }
   }, [videoStream, step]);
 
-  // Play audio instructions based on step (only for capture steps)
+  // Set step instruction based on current step (displays and plays audio)
   useEffect(() => {
-    const playStepAudio = async () => {
-      // Skip if audio already played for this step
+    const setStepInstructionForStep = async () => {
+      // Skip if instruction already set for this step
       if (audioPlayedRef.current.has(step)) return;
       
       let message = '';
       
       switch (step) {
         case 'capture-front':
-          message = 'Position the front of your ID card within the frame, and click on Capture Front Side button.';
+          message = 'Position the front of your ID card within the frame.';
           break;
         case 'capture-back':
-          message = 'Now flip your card. Position the back of your ID card within the frame, and click on Capture Back Side button.';
+          message = 'Now flip your card. Position the back side within the frame.';
           break;
-        // processing and verified are handled directly in handleUploadBoth
-        // No audio for review-front and review-back (retake scenarios)
+        case 'review-front':
+          message = 'Review the captured image. Retake if needed.';
+          break;
+        case 'review-back':
+          message = 'Review both sides. Click verify when ready.';
+          break;
+        case 'processing':
+          message = 'Verifying document. Please wait.';
+          break;
         default:
           return;
       }
       
-      if (message) {
+      if (message && onStepInstruction) {
         // Mark as played immediately to prevent duplicate attempts
         audioPlayedRef.current.add(step);
-        
-        // Wait a moment for audio system to be ready, then play
-        // This handles cases where component mounts before audio is fully initialized
-        const attemptPlay = async (retries: number = 3) => {
-          if (isAudioReady()) {
-            await playVoice(message, false);
-          } else if (retries > 0) {
-            // Retry after a short delay
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await attemptPlay(retries - 1);
-          } else {
-            console.warn('[DocumentVerification] Audio not ready, skipping voice');
-          }
-        };
-        
-        await attemptPlay();
+        await onStepInstruction(message);
       }
     };
     
-    // Small delay to ensure component is fully mounted and audio is ready
-    const timer = setTimeout(playStepAudio, 300);
+    // Small delay to ensure component is fully mounted
+    const timer = setTimeout(setStepInstructionForStep, 300);
     return () => clearTimeout(timer);
-  }, [step]);
+  }, [step, onStepInstruction]);
 
   // Cleanup audio on unmount
   useEffect(() => {
@@ -225,12 +217,6 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
       hasFront: !!frontFile,
       hasBack: !!backFile
     });
-    
-    // Play processing audio
-    if (isAudioReady()) {
-      audioPlayedRef.current.add('processing');
-      playVoice('Verifying document. Please wait.', false);
-    }
 
     try {
       // Upload both front and back documents
@@ -267,15 +253,14 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
           extractedFields: ocrResponse.ocrResults?.extractedData ? Object.keys(ocrResponse.ocrResults.extractedData) : []
         });
         
-        // Play completion audio and wait for it to finish
-        if (isAudioReady()) {
-          await playVoice('Document verification complete. Proceeding to next step.', true);
-          // Mark as played so useEffect doesn't play it again
+        // Set completion instruction and wait for audio to finish
+        if (onStepInstruction) {
+          await onStepInstruction('Document verification complete. Proceeding to next step.', true, true);
           audioPlayedRef.current.add('verified');
         }
         
         // Small pause after audio completes
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         onDocumentVerified(uploadResponse.documentId, ocrResponse.ocrResults);
       } else {
@@ -293,193 +278,114 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
     }
   };
 
-  const handleVideoInteraction = () => {
-    setCardDetected(true);
-    setTimeout(() => setCardDetected(false), 2000);
-  };
-
-  const isCapturing = step === 'capture-front' || step === 'capture-back';
-  const currentSide = step.includes('front') ? 'front' : 'back';
+  // Determine if we have content to show in the document card (snapshots only)
+  const hasCardContent = 
+    (step === 'review-front' && frontImage) ||
+    (step === 'capture-back' && frontImage) ||
+    (step === 'review-back' && backImage);
 
   return (
     <div className="document-verification">
-      {/* Live video preview - always visible */}
+      {/* Hidden video element for capture purposes only */}
       {videoStream && (
-        <div className="live-video-preview document-capture-preview">
-          <div 
-            ref={videoContainerRef}
-            className="video-with-overlay"
-            onClick={handleVideoInteraction}
-          >
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-              className="document-video"
-            />
-            {/* ID Card Guide Overlay - only show during capture */}
-            {isCapturing && (
-              <div className="id-card-overlay">
-                <div className="overlay-mask overlay-top"></div>
-                <div className="overlay-mask overlay-bottom"></div>
-                <div className="overlay-mask overlay-left"></div>
-                <div className="overlay-mask overlay-right"></div>
-                
-                <div className={`id-card-frame ${cardDetected ? 'detected' : ''}`}>
-                  <div className="corner-marker top-left"></div>
-                  <div className="corner-marker top-right"></div>
-                  <div className="corner-marker bottom-left"></div>
-                  <div className="corner-marker bottom-right"></div>
-                  
-                  <div className="card-hint">
-                    <span className="hint-icon">{currentSide === 'front' ? '🪪' : '🔄'}</span>
-                    <span className="hint-text">
-                      {currentSide === 'front' ? 'Place FRONT of ID card' : 'Place BACK of ID card'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          <p className="video-label">
-            <span className="pulse-dot"></span>
-            Live Camera {isCapturing ? `- Capture ${currentSide.toUpperCase()} side` : ''}
-          </p>
-        </div>
+        <video
+          ref={localVideoRef}
+          autoPlay
+          playsInline
+          muted
+          style={{ display: 'none' }}
+        />
       )}
       
-      <div className="document-card">
-        <h2>📄 Document Verification</h2>
-
-        {/* Capture Front Side */}
-        {step === 'capture-front' && (
-          <>
-            <div className="side-indicator front">
-              <span className="side-badge">FRONT SIDE</span>
-            </div>
-            <p>Position the <strong>FRONT</strong> of your ID card within the frame.</p>
-            <div className="capture-instructions">
-              <ul>
-                <li>✓ Photo and name should be visible</li>
-                <li>✓ Document number clearly readable</li>
-                <li>✓ Ensure good lighting, no glare</li>
-              </ul>
-            </div>
-            <div className="document-actions">
-              <button className="btn-primary btn-capture" onClick={handleCaptureFront}>
-                📸 Capture Front Side
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* Review Front Side */}
-        {step === 'review-front' && frontImage && (
-          <>
-            <div className="side-indicator front">
-              <span className="side-badge">FRONT SIDE</span>
-            </div>
-            <p>Review the front side of your document:</p>
-            <div className="document-preview">
-              <img src={frontImage} alt="Document Front" />
-            </div>
-            {error && <div className="error-message">{error}</div>}
-            <div className="document-actions">
-              <button className="btn-secondary" onClick={handleRetakeFront}>
-                ↩ Retake
-              </button>
-              <button className="btn-primary" onClick={handleConfirmFront}>
-                ✓ Confirm & Continue
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* Capture Back Side */}
-        {step === 'capture-back' && (
-          <>
-            <div className="side-indicator back">
-              <span className="side-badge">BACK SIDE</span>
-            </div>
-            <p>Now flip your card and capture the <strong>BACK</strong> side.</p>
-            <div className="capture-instructions">
-              <ul>
-                <li>✓ Address details should be visible</li>
-                <li>✓ Any barcodes/QR codes readable</li>
-                <li>✓ Keep card aligned in frame</li>
-              </ul>
-            </div>
-            {/* Show front preview thumbnail */}
-            {frontImage && (
-              <div className="captured-preview">
-                <small>Front side captured:</small>
-                <img src={frontImage} alt="Front side" className="thumbnail" />
+      {/* Document card - only render for snapshots */}
+      {hasCardContent && (
+        <div className="document-card document-card-minimal">
+          {/* Review Front Side - snapshot only */}
+          {step === 'review-front' && frontImage && (
+            <>
+              <div className="document-snapshot">
+                <img src={frontImage} alt="Document Front" />
+                <span className="snapshot-label">Front</span>
               </div>
-            )}
-            <div className="document-actions">
-              <button className="btn-secondary" onClick={handleRetakeFront}>
-                ↩ Redo Front
-              </button>
-              <button className="btn-primary btn-capture" onClick={handleCaptureBack}>
-                📸 Capture Back Side
-              </button>
-            </div>
-          </>
-        )}
+              {error && <div className="error-message">{error}</div>}
+            </>
+          )}
 
-        {/* Review Back Side */}
-        {step === 'review-back' && backImage && (
-          <>
-            <div className="side-indicator back">
-              <span className="side-badge">BACK SIDE</span>
+          {/* Capture Back Side - show front preview */}
+          {step === 'capture-back' && frontImage && (
+            <div className="document-snapshot">
+              <img src={frontImage} alt="Front side" />
+              <span className="snapshot-label">Front captured</span>
             </div>
-            <p>Review both sides of your document:</p>
-            <div className="document-preview-both">
-              <div className="preview-item">
-                <small>Front</small>
-                <img src={frontImage!} alt="Document Front" />
+          )}
+
+          {/* Review Back Side - both snapshots */}
+          {step === 'review-back' && backImage && (
+            <>
+              <div className="document-snapshots-row">
+                <div className="document-snapshot">
+                  <img src={frontImage!} alt="Document Front" />
+                  <span className="snapshot-label">Front</span>
+                </div>
+                <div className="document-snapshot">
+                  <img src={backImage} alt="Document Back" />
+                  <span className="snapshot-label">Back</span>
+                </div>
               </div>
-              <div className="preview-item">
-                <small>Back</small>
-                <img src={backImage} alt="Document Back" />
-              </div>
-            </div>
-            {error && <div className="error-message">{error}</div>}
-            <div className="document-actions">
-              <button className="btn-secondary" onClick={handleRetakeBack}>
-                ↩ Retake Back
-              </button>
-              <button className="btn-primary" onClick={handleUploadBoth} disabled={loading}>
-                {loading ? 'Processing...' : '✓ Verify Document'}
-              </button>
-            </div>
-          </>
-        )}
+              {error && <div className="error-message">{error}</div>}
+            </>
+          )}
+        </div>
+      )}
 
-        {/* Processing */}
-        {step === 'processing' && (
-          <div className="status-message">
-            <div className="spinner"></div>
-            <p>Verifying document...</p>
-            <small>Extracting information from both sides...</small>
-          </div>
-        )}
+      {/* Processing spinner only - message shown in instruction overlay */}
+      {step === 'processing' && (
+        <div className="document-status-standalone">
+          <div className="spinner"></div>
+        </div>
+      )}
 
-        {/* Verified */}
-        {step === 'verified' && ocrResults && (
-          <div className="status-message">
-            <div className="ocr-results">
-              <h3>✅ Extracted Information:</h3>
-              <p><strong>Name:</strong> {ocrResults.extractedData.fullName}</p>
-              <p><strong>Date of Birth:</strong> {ocrResults.extractedData.dateOfBirth}</p>
-              <p><strong>Address:</strong> {ocrResults.extractedData.address}</p>
-              <p><strong>Document Number:</strong> {ocrResults.extractedData.documentNumber}</p>
-            </div>
-            <small>Proceeding to next step...</small>
-          </div>
-        )}
-      </div>
+      {/* Buttons - always outside the card */}
+      {step === 'capture-front' && (
+        <div className="document-actions-standalone">
+          <button className="btn-primary btn-capture" onClick={handleCaptureFront}>
+            Capture Front Side
+          </button>
+        </div>
+      )}
+
+      {step === 'review-front' && frontImage && (
+        <div className="document-actions-standalone">
+          <button className="btn-secondary" onClick={handleRetakeFront}>
+            Retake
+          </button>
+          <button className="btn-primary" onClick={handleConfirmFront}>
+            Confirm
+          </button>
+        </div>
+      )}
+
+      {step === 'capture-back' && (
+        <div className="document-actions-standalone">
+          <button className="btn-secondary" onClick={handleRetakeFront}>
+            Redo Front
+          </button>
+          <button className="btn-primary btn-capture" onClick={handleCaptureBack}>
+            Capture Back Side
+          </button>
+        </div>
+      )}
+
+      {step === 'review-back' && backImage && (
+        <div className="document-actions-standalone">
+          <button className="btn-secondary" onClick={handleRetakeBack}>
+            Retake
+          </button>
+          <button className="btn-primary" onClick={handleUploadBoth} disabled={loading}>
+            {loading ? 'Processing...' : 'Verify'}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

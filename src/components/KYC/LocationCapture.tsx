@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import kycApiService from '../../services/kycApiService';
-import { playVoice, isAudioReady } from '../../services/audioService';
 import { uiEventLoggerService } from '../../services/uiEventLoggerService';
 
 interface LocationCaptureProps {
@@ -10,6 +9,7 @@ interface LocationCaptureProps {
   documentAddress?: string;
   locationRadiusKm?: number;
   videoStream?: MediaStream | null;
+  onStepInstruction?: (instruction: string, playAudio?: boolean, waitForAudio?: boolean) => Promise<void>;
 }
 
 interface AddressComparison {
@@ -36,6 +36,7 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
   documentAddress,
   locationRadiusKm,
   videoStream,
+  onStepInstruction,
 }) => {
   const [status, setStatus] = useState<'idle' | 'capturing' | 'comparing' | 'captured' | 'error'>('idle');
   const [location, setLocation] = useState<any>(null);
@@ -71,9 +72,9 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
     // Log location capture started
     uiEventLoggerService.logEvent('location_capture_started', { sessionId });
 
-    // Play capturing audio and wait for it to finish
-    if (isAudioReady()) {
-      await playVoice('Capturing your location for compliance purposes.', true);
+    // Set step instruction (displays and plays audio)
+    if (onStepInstruction) {
+      await onStepInstruction('Capturing your location for compliance purposes.');
     }
 
     let gpsLatitude: number | undefined;
@@ -131,12 +132,12 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
       setStatus('captured');
     }
 
-    // Play completion audio and wait for it to finish (only once)
+    // Set completion instruction (only once)
     if (!hasCompletedRef.current) {
       hasCompletedRef.current = true;
       
-      if (isAudioReady()) {
-        await playVoice('Location verification complete. Proceeding to next step.', true);
+      if (onStepInstruction) {
+        await onStepInstruction('Location verification complete. Proceeding to next step.');
       }
       
       // Small pause after audio, then advance
@@ -147,68 +148,46 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
 
   return (
     <div className="location-capture">
-      {/* Live video preview */}
+      {/* Live video preview - hidden, shown in main layout */}
       {videoStream && (
-        <div className="live-video-preview">
+        <div className="live-video-preview" style={{ display: 'none' }}>
           <video
             ref={localVideoRef}
             autoPlay
             playsInline
             muted
-            style={{
-              width: '100%',
-              maxWidth: '640px',
-              borderRadius: '10px',
-              transform: 'scaleX(-1)',
-              border: '3px solid #667eea'
-            }}
           />
-          <p className="video-label">Live Camera</p>
         </div>
       )}
 
-      <div className="location-card">
-        <h2>📍 Location Verification</h2>
-        <p>We need to verify your location for compliance purposes.</p>
+      {/* Spinner during capturing/comparing - instruction shown in overlay */}
+      {(status === 'capturing' || status === 'comparing') && (
+        <div className="location-status-standalone">
+          <div className="spinner"></div>
+        </div>
+      )}
 
-        {(status === 'capturing' || status === 'comparing') && (
-          <div className="status-message">
-            <div className="spinner"></div>
-            <p>{status === 'capturing' ? 'Capturing your location...' : 'Verifying location against document address...'}</p>
-            <small>{status === 'capturing' ? 'Please allow location access when prompted' : 'Comparing your location with document address'}</small>
-          </div>
-        )}
+      {/* Captured location as simple status */}
+      {status === 'captured' && location && (
+        <div className="location-status-standalone success">
+          <p className="location-coords">
+            {location.gps ? (
+              <>
+                {location.gps.latitude.toFixed(4)}, {location.gps.longitude.toFixed(4)}
+              </>
+            ) : (
+              'Location verified via IP'
+            )}
+          </p>
+        </div>
+      )}
 
-        {status === 'captured' && location && (
-          <div className="status-message success">
-            <span className="icon">✅</span>
-            <p>Location Captured</p>
-            
-            {/* GPS Coordinates */}
-            <div className="location-details">
-              {location.gps ? (
-                <>
-                  <p><strong>Latitude:</strong> {location.gps.latitude.toFixed(6)}</p>
-                  <p><strong>Longitude:</strong> {location.gps.longitude.toFixed(6)}</p>
-                </>
-              ) : (
-                <p>Location detected via IP</p>
-              )}
-            </div>
-            
-            <small className="proceeding">Proceeding to next step...</small>
-          </div>
-        )}
-
-        {status === 'error' && (
-          <div className="status-message error">
-            <span className="icon">⚠️</span>
-            <p>Location Error</p>
-            <small>{error || 'Could not capture location'}</small>
-            <small className="proceeding">Proceeding anyway...</small>
-          </div>
-        )}
-      </div>
+      {/* Error status */}
+      {status === 'error' && (
+        <div className="location-status-standalone error">
+          <p>{error || 'Location error'}</p>
+        </div>
+      )}
     </div>
   );
 };

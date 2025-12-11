@@ -41,7 +41,7 @@ const ConsentScreen: React.FC<ConsentScreenProps> = ({ onSubmit, onCancel, loadi
               onChange={(e) => setConsent({ ...consent, videoRecording: e.target.checked })}
             />
             <div className="consent-content">
-              <h3>📹 Video Recording</h3>
+              <h3>Video Recording</h3>
               <p>I consent to the recording of this video call session for verification and compliance purposes.</p>
             </div>
           </label>
@@ -53,7 +53,7 @@ const ConsentScreen: React.FC<ConsentScreenProps> = ({ onSubmit, onCancel, loadi
               onChange={(e) => setConsent({ ...consent, locationTracking: e.target.checked })}
             />
             <div className="consent-content">
-              <h3>📍 Location Tracking</h3>
+              <h3>Location Tracking</h3>
               <p>I consent to sharing my location data (GPS/IP) for verification purposes.</p>
             </div>
           </label>
@@ -65,7 +65,7 @@ const ConsentScreen: React.FC<ConsentScreenProps> = ({ onSubmit, onCancel, loadi
               onChange={(e) => setConsent({ ...consent, documentUse: e.target.checked })}
             />
             <div className="consent-content">
-              <h3>📄 Document Use</h3>
+              <h3>Document Use</h3>
               <p>I consent to the collection, processing, and storage of my identity documents for KYC verification.</p>
             </div>
           </label>
@@ -73,7 +73,7 @@ const ConsentScreen: React.FC<ConsentScreenProps> = ({ onSubmit, onCancel, loadi
 
         <div className="consent-footer">
           <p className="consent-note">
-            🔒 Your data is encrypted and stored securely. We comply with all data protection regulations.
+            Your data is encrypted and stored securely. We comply with all data protection regulations.
           </p>
           <div className="consent-actions">
             {onCancel && (
