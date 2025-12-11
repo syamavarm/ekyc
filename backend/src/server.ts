@@ -2,8 +2,10 @@
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
+import path from 'path';
 import kycRoutes from './routes/kycRoutes';
 import adminRoutes from './routes/adminRoutes';
+import sessionRecordingRoutes from './routes/sessionRecordingRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -15,6 +17,9 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded files (documents, face images, etc.)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // HTTP Server
 const server = http.createServer(app);
@@ -33,6 +38,9 @@ app.use('/kyc', kycRoutes);
 
 // Admin Routes - Workflow Configuration
 app.use('/admin', adminRoutes);
+
+// Session Recording Routes - Video/Timeline capture
+app.use('/admin/session', sessionRecordingRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -54,6 +62,13 @@ app.use((req, res) => {
       'GET /kyc/session/:id/summary',
       'GET /kyc/session/:id',
       'GET /kyc/sessions',
+      // Session Recording Routes
+      'POST /admin/session/recording/chunk',
+      'POST /admin/session/recording/complete',
+      'POST /admin/session/events/batch',
+      'GET /admin/session/:sessionId/timeline',
+      'GET /admin/session/:sessionId/video',
+      'GET /admin/sessions/recordings',
     ]
   });
 });

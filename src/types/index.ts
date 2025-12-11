@@ -24,3 +24,13 @@ export interface WebRTCConfig {
   iceServers: RTCIceServer[];
 }
 
+// Workflow configuration types for admin
+export interface WorkflowSteps {
+  locationCapture: boolean;
+  documentOCR: boolean;
+  secureVerification: boolean;
+  questionnaire: boolean;
+  locationRadiusKm?: number;
+  enableSessionRecording?: boolean;
+}
+

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './AdminWorkflowConfig.css';
+import SessionReplayPage from './SessionReplayPage';
 
 interface WorkflowSteps {
   locationCapture: boolean;
@@ -7,6 +8,7 @@ interface WorkflowSteps {
   secureVerification: boolean;
   questionnaire: boolean;
   locationRadiusKm?: number;
+  enableSessionRecording?: boolean;
 }
 
 interface QuestionSet {
@@ -85,6 +87,9 @@ const AdminWorkflowConfig: React.FC = () => {
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('configurations');
   
+  // Session replay state
+  const [replaySessionId, setReplaySessionId] = useState<string | null>(null);
+  
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState<WorkflowConfiguration | null>(null);
@@ -97,6 +102,7 @@ const AdminWorkflowConfig: React.FC = () => {
     secureVerification: true,
     questionnaire: true,
     locationRadiusKm: undefined,
+    enableSessionRecording: true, // Default enabled for video-KYC
   });
   const [selectedForm, setSelectedForm] = useState<string>('');
   
@@ -177,6 +183,7 @@ const AdminWorkflowConfig: React.FC = () => {
       secureVerification: true,
       questionnaire: true,
       locationRadiusKm: undefined,
+      enableSessionRecording: true,
     });
     setSelectedForm(questionSets.find(qs => qs.id === 'basic')?.id || '');
     setEditingConfig(null);
@@ -501,6 +508,24 @@ const AdminWorkflowConfig: React.FC = () => {
               <span className="toggle-slider"></span>
             </label>
           </div>
+
+          <div className="step-item">
+            <div className="step-info-compact">
+              <span className="step-icon-small">🎬</span>
+              <span>Session Recording</span>
+            </div>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={steps.enableSessionRecording !== false}
+                onChange={() => setSteps(prev => ({
+                  ...prev,
+                  enableSessionRecording: !prev.enableSessionRecording
+                }))}
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -768,6 +793,13 @@ const AdminWorkflowConfig: React.FC = () => {
                   </td>
                   <td className="actions-cell">
                     <button
+                      className="btn-icon btn-replay"
+                      onClick={() => setReplaySessionId(session.sessionId)}
+                      title="View Replay"
+                    >
+                      🎬
+                    </button>
+                    <button
                       className="btn-icon btn-download"
                       onClick={() => handleDownloadReport(session.sessionId)}
                       title="Download Report"
@@ -783,6 +815,16 @@ const AdminWorkflowConfig: React.FC = () => {
       </div>
     </div>
   );
+
+  // If viewing session replay, show the replay page
+  if (replaySessionId) {
+    return (
+      <SessionReplayPage
+        sessionId={replaySessionId}
+        onBack={() => setReplaySessionId(null)}
+      />
+    );
+  }
 
   return (
     <div className="admin-workflow-config">

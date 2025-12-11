@@ -417,6 +417,10 @@
   grid-column: 2;
   max-width: none;
   height: fit-content;
+  background: white;
+  border-radius: 20px;
+  padding: 40px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 }
 
 @media (max-width: 900px) {
@@ -449,6 +453,10 @@
   grid-column: 2;
   max-width: none;
   height: fit-content;
+  background: white;
+  border-radius: 20px;
+  padding: 40px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 }
 
 @media (max-width: 900px) {
@@ -853,15 +861,26 @@
   font-size: 1.1rem;
 }
 
+.capture-instructions {
+  background: #f8f9ff;
+  border: 1px solid #e0e5f5;
+  border-radius: 10px;
+  padding: 15px 20px;
+  margin: 15px 0;
+}
+
 .capture-instructions ul {
   list-style: none;
   padding: 0;
-  margin: 20px 0;
+  margin: 0;
 }
 
 .capture-instructions li {
   padding: 8px 0;
-  color: #666;
+  color: #555;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .document-preview {
@@ -913,6 +932,10 @@
   grid-column: 2;
   max-width: none;
   height: fit-content;
+  background: white;
+  border-radius: 20px;
+  padding: 40px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 }
 
 @media (max-width: 900px) {
@@ -1495,5 +1518,43 @@
   .yes-no-btn {
     width: 100%;
   }
+}
+
+/* Recording Indicator */
+.recording-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 0, 0, 0.2);
+  padding: 6px 14px;
+  border-radius: 20px;
+  margin-bottom: 15px;
+}
+
+.recording-dot {
+  width: 10px;
+  height: 10px;
+  background: #ff0000;
+  border-radius: 50%;
+  animation: pulse-recording 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-recording {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+}
+
+.recording-text {
+  font-size: 0.8rem;
+  color: #ff6b6b;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 

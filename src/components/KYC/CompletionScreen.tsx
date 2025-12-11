@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import kycApiService, { RequiredSteps } from '../../services/kycApiService';
 import { playVoice, isAudioReady } from '../../services/audioService';
+import { uiEventLoggerService } from '../../services/uiEventLoggerService';
 
 interface CompletionScreenProps {
   sessionId: string;
@@ -40,8 +41,15 @@ const CompletionScreen: React.FC<CompletionScreenProps> = ({
       setCompletionResult({
         requiredSteps: result.requiredSteps,
       });
+      
+      // Log session completion for timeline replay
+      uiEventLoggerService.logSessionCompleted(result.success, result.verificationResults);
     } catch (err: any) {
       console.error('Failed to complete KYC:', err);
+      
+      // Log session failure for timeline replay
+      uiEventLoggerService.logSessionCompleted(false, { error: err.message });
+      
       // Even if there's an error, show completion screen with defaults
       setCompletionResult({ 
         requiredSteps: {

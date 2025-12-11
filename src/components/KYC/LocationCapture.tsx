@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import kycApiService from '../../services/kycApiService';
 import { playVoice, isAudioReady } from '../../services/audioService';
+import { uiEventLoggerService } from '../../services/uiEventLoggerService';
 
 interface LocationCaptureProps {
   sessionId: string;
@@ -67,6 +68,9 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
     setError('');
     setAddressComparison(null);
 
+    // Log location capture started
+    uiEventLoggerService.logEvent('location_capture_started', { sessionId });
+
     // Play capturing audio and wait for it to finish
     if (isAudioReady()) {
       await playVoice('Capturing your location for compliance purposes.', true);
@@ -107,10 +111,20 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
         locationData.locationSource = comparison.locationSource;
         setLocation(locationData);
         setStatus('captured');
+        
+        // Log location check result for timeline replay
+        uiEventLoggerService.logLocationCheck(comparison.verified || false, {
+          latitude: gpsLatitude,
+          longitude: gpsLongitude,
+          distanceKm: comparison.distanceKm,
+          message: comparison.message,
+        });
       } catch (comparisonErr: any) {
         console.error('Address comparison failed:', comparisonErr);
         setError(comparisonErr.message || 'Location verification failed');
         setStatus('error');
+        // Log location check failure
+        uiEventLoggerService.logError('location_comparison_failed', comparisonErr.message || 'Location verification failed');
       }
     } else {
       // No document address to compare, just mark as captured

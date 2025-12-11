@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import kycApiService from '../../services/kycApiService';
 import { playVoice, isAudioReady, stopAllAudio } from '../../services/audioService';
+import { uiEventLoggerService } from '../../services/uiEventLoggerService';
 
 interface DocumentVerificationProps {
   sessionId: string;
@@ -177,6 +178,8 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
       setFrontImage(result.imageUrl);
       setFrontFile(result.file);
       setStep('review-front');
+      // Log document front capture
+      uiEventLoggerService.logDocumentCaptured(documentType, 'front');
     }
   };
 
@@ -186,6 +189,8 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
       setBackImage(result.imageUrl);
       setBackFile(result.file);
       setStep('review-back');
+      // Log document back capture
+      uiEventLoggerService.logDocumentCaptured(documentType, 'back');
     }
   };
 
@@ -193,16 +198,19 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
     setFrontImage(null);
     setFrontFile(null);
     setStep('capture-front');
+    uiEventLoggerService.logEvent('document_retake', { side: 'front' });
   };
 
   const handleRetakeBack = () => {
     setBackImage(null);
     setBackFile(null);
     setStep('capture-back');
+    uiEventLoggerService.logEvent('document_retake', { side: 'back' });
   };
 
   const handleConfirmFront = () => {
     setStep('capture-back');
+    uiEventLoggerService.logEvent('document_front_confirmed', {});
   };
 
   const handleUploadBoth = async () => {
@@ -210,6 +218,13 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
 
     setStep('processing');
     setError('');
+    
+    // Log document processing started
+    uiEventLoggerService.logEvent('document_processing_started', { 
+      documentType,
+      hasFront: !!frontFile,
+      hasBack: !!backFile
+    });
     
     // Play processing audio
     if (isAudioReady()) {
@@ -225,13 +240,32 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
         frontFile,
         backFile
       );
+      
+      // Log document upload complete
+      uiEventLoggerService.logEvent('document_uploaded', { 
+        documentId: uploadResponse.documentId,
+        documentType
+      });
 
       // Run OCR on combined document
       const ocrResponse = await kycApiService.runOCR(sessionId, uploadResponse.documentId);
+      
+      // Log OCR result
+      uiEventLoggerService.logEvent('document_ocr_result', {
+        isValid: ocrResponse.isValid,
+        hasExtractedData: !!ocrResponse.ocrResults?.extractedData,
+        validationErrors: ocrResponse.validationErrors
+      });
 
       if (ocrResponse.isValid) {
         setOcrResults(ocrResponse.ocrResults);
         setStep('verified');
+        
+        // Log document verified
+        uiEventLoggerService.logEvent('document_verified', {
+          documentId: uploadResponse.documentId,
+          extractedFields: ocrResponse.ocrResults?.extractedData ? Object.keys(ocrResponse.ocrResults.extractedData) : []
+        });
         
         // Play completion audio and wait for it to finish
         if (isAudioReady()) {
@@ -247,11 +281,15 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
       } else {
         setError(ocrResponse.validationErrors?.join(', ') || 'Document validation failed');
         setStep('review-back');
+        // Log OCR validation failed
+        uiEventLoggerService.logError('document_validation_failed', ocrResponse.validationErrors?.join(', ') || 'Document validation failed');
       }
     } catch (err: any) {
       console.error('Document verification error:', err);
       setError(err.message || 'Failed to verify document');
       setStep('review-back');
+      // Log document verification error
+      uiEventLoggerService.logError('document_verification_error', err.message || 'Failed to verify document');
     }
   };
 

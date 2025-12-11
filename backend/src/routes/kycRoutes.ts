@@ -14,6 +14,7 @@ import { FaceVerificationService } from '../services/faceVerificationService';
 import { LivenessCheckService } from '../services/livenessCheckService';
 import { ReportGenerationService } from '../services/reportGenerationService';
 import { QuestionnaireService } from '../services/questionnaireService';
+import { sessionTimelineService } from '../services/sessionTimelineService';
 import {
   StartKYCRequest,
   StartKYCResponse,
@@ -470,6 +471,15 @@ router.post('/document/ocr', async (req: Request, res: Response) => {
         : 'Document validation failed',
     };
     
+    // Log backend decision to session timeline for replay
+    sessionTimelineService.saveBackendDecision(sessionId, 'ocr_result', validation.isValid, {
+      confidence: ocrResults.confidence,
+      additionalData: { 
+        documentType: ocrResults.documentType,
+        extractedFields: Object.keys(ocrResults.extractedData || {}),
+      },
+    });
+    
     res.status(200).json(response);
   } catch (error) {
     console.error('[KYC Routes] Error performing OCR:', error);
@@ -710,6 +720,17 @@ router.post('/face-liveness', upload.fields([
     
     console.log(`[KYC Routes] Combined face+liveness result: overall=${overallResult}`);
     
+    // Log backend decisions to session timeline for replay
+    sessionTimelineService.saveBackendDecision(sessionId, 'face_match', faceMatchResult.isMatch, {
+      score: faceMatchResult.matchScore,
+      confidence: faceMatchResult.confidence,
+    });
+    
+    sessionTimelineService.saveBackendDecision(sessionId, 'liveness_check', livenessResult.overallResult, {
+      confidence: livenessResult.confidenceScore,
+      additionalData: { checks: livenessResult.checks },
+    });
+    
     res.status(200).json(response);
   } catch (error) {
     console.error('[KYC Routes] Error in combined face+liveness:', error);
@@ -767,6 +788,18 @@ router.post('/complete', async (req: Request, res: Response) => {
         console.log(`[KYC Routes] Report already exists for session ${sessionId}`);
       }
     }
+    
+    // Log backend decision to session timeline for replay
+    sessionTimelineService.saveBackendDecision(sessionId, 'session_complete', result.success, {
+      score: updatedSession?.overallScore,
+      additionalData: {
+        verificationResults: result.verificationResults,
+        requiredSteps: result.requiredSteps,
+      },
+    });
+    
+    // Persist session timeline data
+    sessionTimelineService.persistSession(sessionId);
     
     const response = {
       success: result.success,
@@ -1097,6 +1130,15 @@ router.post('/questionnaire/submit', async (req: Request, res: Response) => {
     // Update session
     sessionManager.updateQuestionnaire(sessionId, questionnaireData);
     
+    // Log backend decision to session timeline for replay
+    sessionTimelineService.saveBackendDecision(sessionId, 'questionnaire_result', questionnaireData.passed, {
+      score: questionnaireData.score,
+      additionalData: {
+        questionSet,
+        totalQuestions: questionnaireData.questions.length,
+      },
+    });
+    
     res.status(200).json({
       success: questionnaireData.passed,
       sessionId,
@@ -1244,6 +1286,16 @@ router.post('/location/compare', async (req: Request, res: Response) => {
     
     // Update the session's locationVerified based on the comparison result
     sessionManager.updateLocationVerified(sessionId, comparisonResult.verified);
+    
+    // Log backend decision to session timeline for replay
+    sessionTimelineService.saveBackendDecision(sessionId, 'location_check', comparisonResult.verified, {
+      additionalData: {
+        verificationType: comparisonResult.verificationType,
+        locationSource,
+        distanceKm: comparisonResult.distanceKm,
+        message: comparisonResult.message,
+      },
+    });
     
     res.status(200).json({
       success: true,

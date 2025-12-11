@@ -9,6 +9,7 @@ import {
   isAudioReady,
   logAvailableVoices
 } from '../../services/audioService';
+import { uiEventLoggerService } from '../../services/uiEventLoggerService';
 
 interface FaceVerificationProps {
   sessionId: string;
@@ -156,6 +157,9 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
   const startVerification = async () => {
     setError('');
     
+    // Log verification started
+    uiEventLoggerService.logEvent('face_verification_started', { sessionId, documentId });
+    
     // Initialize audio on user interaction (button click)
     await initializeAudio();
     
@@ -181,6 +185,7 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
     
     // Step 1: Capture initial face image
     setStatus('capturing_face');
+    uiEventLoggerService.logEvent('face_capture_started', {});
     await showInstruction('Hold still', 'action');
     await playBeep('action'); // Sharp beep for capture
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -189,11 +194,13 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
     if (!faceImage) {
       setError('Failed to capture face image');
       setStatus('failed');
+      uiEventLoggerService.logError('face_capture_failed', 'Failed to capture face image');
       stopAllAudio();
       setTimeout(() => onComplete(), 3000);
       return;
     }
     
+    uiEventLoggerService.logEvent('face_captured', { success: true });
     console.log('[SecureVerification] Captured initial face image');
     
     // Step 2: Perform liveness actions
@@ -209,17 +216,30 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
    */
   const performLivenessActions = async (): Promise<Blob[]> => {
     const instructions = [
-      { text: 'Blink your eyes naturally', voiceText: 'Please blink your eyes naturally, after the beep', duration: 3000, captureCount: 6 },
-      { text: 'Turn head slowly to the left', voiceText: 'Turn your head slowly to the left, after the beep', duration: 2500, captureCount: 5 },
-      { text: 'Turn head slowly to the right', voiceText: 'Turn your head slowly to the right, after the beep', duration: 2500, captureCount: 5 },
-      { text: 'Please smile', voiceText: 'Please smile, after the beep', duration: 2000, captureCount: 4 },
-      { text: 'Look straight at the camera', voiceText: 'Look straight at the camera, after the beep', duration: 1500, captureCount: 3 },
+      { text: 'Blink your eyes naturally', voiceText: 'Please blink your eyes naturally, after the beep', duration: 3000, captureCount: 6, action: 'blink' },
+      { text: 'Turn head slowly to the left', voiceText: 'Turn your head slowly to the left, after the beep', duration: 2500, captureCount: 5, action: 'turn_left' },
+      { text: 'Turn head slowly to the right', voiceText: 'Turn your head slowly to the right, after the beep', duration: 2500, captureCount: 5, action: 'turn_right' },
+      { text: 'Please smile', voiceText: 'Please smile, after the beep', duration: 2000, captureCount: 4, action: 'smile' },
+      { text: 'Look straight at the camera', voiceText: 'Look straight at the camera, after the beep', duration: 1500, captureCount: 3, action: 'look_straight' },
     ];
 
     const frames: Blob[] = [];
+    
+    // Log liveness check started
+    uiEventLoggerService.logEvent('liveness_check_started', { 
+      totalActions: instructions.length 
+    });
 
     for (let i = 0; i < instructions.length; i++) {
       const instruction = instructions[i];
+      
+      // Log each liveness action
+      uiEventLoggerService.logEvent('liveness_action', {
+        action: instruction.action,
+        step: i + 1,
+        totalSteps: instructions.length,
+        instruction: instruction.text
+      });
       
       // Show "prepare" instruction with soft beep and voice
       setCurrentInstruction(`Get ready: ${instruction.text}`);
@@ -290,9 +310,26 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
       setResult(result);
       stopAllAudio();
       
+      // Log face verification results for timeline replay
+      uiEventLoggerService.logFaceCheckResult(
+        result.faceMatch.isMatch,
+        result.faceMatch.matchScore,
+        result.faceMatch.confidence
+      );
+      uiEventLoggerService.logLivenessCheckResult(
+        result.liveness.overallResult,
+        result.liveness.confidenceScore,
+        result.liveness.checks
+      );
+      
       if (result.overallResult) {
         onVerified();
         setStatus('success');
+        // Log verification success
+        uiEventLoggerService.logEvent('face_verification_success', {
+          faceMatchScore: result.faceMatch.matchScore,
+          livenessScore: result.liveness.confidenceScore
+        });
         if (isAudioReady()) {
           await playVoice('Verification complete. Proceeding to next step.', true);
         }
@@ -300,6 +337,12 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
       } else {
         setError(result.message);
         setStatus('failed');
+        // Log verification failed
+        uiEventLoggerService.logEvent('face_verification_failed', {
+          reason: result.message,
+          faceMatchScore: result.faceMatch.matchScore,
+          livenessScore: result.liveness.confidenceScore
+        });
         if (isAudioReady()) {
           await playVoice('Verification complete. Proceeding to next step.', true);
         }
@@ -309,6 +352,8 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
       console.error('[SecureVerification] Verification error:', err);
       setError(err.message || 'Verification failed');
       setStatus('failed');
+      // Log verification error
+      uiEventLoggerService.logError('face_verification_error', err.message || 'Verification failed');
       stopAllAudio();
       if (isAudioReady()) {
         await playVoice('Verification complete. Proceeding to next step.', true);

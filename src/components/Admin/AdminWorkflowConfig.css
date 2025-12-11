@@ -320,6 +320,11 @@
   border-color: #c4b5fd;
 }
 
+.btn-icon.btn-replay:hover {
+  background: #fef3c7;
+  border-color: #fcd34d;
+}
+
 /* Status Badges */
 .status-badge {
   padding: 0.3rem 0.7rem;

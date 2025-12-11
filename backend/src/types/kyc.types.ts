@@ -454,6 +454,15 @@ export interface WorkflowSteps {
   questionnaire: boolean;
   // Location verification radius in kilometers (compare user's GPS with document address)
   locationRadiusKm?: number;
+  /**
+   * Session Recording: Captures video/audio and UI events for admin replay.
+   * When enabled, records:
+   * 1. Full camera video/audio using MediaRecorder
+   * 2. UI events and step transitions
+   * 3. Backend decision events (face match, liveness, OCR, location)
+   * Default: true for video-KYC workflows
+   */
+  enableSessionRecording?: boolean;
   // Extensible for future steps
   [key: string]: boolean | number | undefined;
 }

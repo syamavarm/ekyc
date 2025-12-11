@@ -12,6 +12,8 @@ import FaceVerification from './FaceVerification';
 import QuestionnaireScreen from './QuestionnaireScreen';
 import CompletionScreen from './CompletionScreen';
 import { initializeAudio, playVoice, isAudioReady } from '../../services/audioService';
+import sessionRecordingService, { SessionRecordingService } from '../../services/sessionRecordingService';
+import { uiEventLoggerService } from '../../services/uiEventLoggerService';
 import './EKYCWorkflow.css';
 
 export type WorkflowStep =
@@ -29,6 +31,7 @@ interface WorkflowSteps {
   secureVerification: boolean;
   questionnaire: boolean;
   locationRadiusKm?: number;
+  enableSessionRecording?: boolean;
 }
 
 interface EKYCWorkflowProps {
@@ -92,6 +95,10 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   // Audio state for camera setup step
   const [cameraAudioPlayed, setCameraAudioPlayed] = useState(false);
   const [cameraAudioPlaying, setCameraAudioPlaying] = useState(false);
+  
+  // Session recording state - enabled by default for video-KYC, configurable via workflowSteps
+  const [isRecordingEnabled] = useState(workflowSteps?.enableSessionRecording !== false); // Default true
+  const [isRecordingActive, setIsRecordingActive] = useState(false);
 
   // Calculate enabled steps based on workflow configuration
   // Location capture now comes AFTER document verification to enable address comparison
@@ -142,11 +149,42 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
 
   const enabledSteps = getEnabledSteps();
 
-  // Cleanup video stream on unmount
+  // Initialize UI event logger when session ID is available
+  // The logger persists for the entire session - we don't stop it on component remount
+  useEffect(() => {
+    // Only initialize if not already initialized for this session
+    const currentLoggerSession = uiEventLoggerService.getCurrentSessionId();
+    
+    if (isRecordingEnabled && initialSessionId) {
+      if (currentLoggerSession !== initialSessionId) {
+        // Different session or not initialized - initialize now
+        console.log('[EKYCWorkflow] Initializing UI event logger for session:', initialSessionId);
+        uiEventLoggerService.initialize(initialSessionId);
+        uiEventLoggerService.logSessionStarted({
+          userId,
+          workflowConfigId,
+          steps: workflowSteps,
+        });
+        // Log the initial step
+        uiEventLoggerService.logStepStarted('consent');
+      } else {
+        console.log('[EKYCWorkflow] UI event logger already initialized for session:', initialSessionId);
+      }
+    }
+    
+    // Don't stop the logger on cleanup - it should persist for the session
+    // The logger will flush on page unload via beforeunload handler
+  }, [initialSessionId, isRecordingEnabled, userId, workflowConfigId, workflowSteps]);
+
+  // Cleanup video stream and recording on unmount
   useEffect(() => {
     return () => {
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
+      }
+      // Stop recording if active
+      if (sessionRecordingService.getIsRecording()) {
+        sessionRecordingService.stopRecording();
       }
     };
   }, [localStream]);
@@ -203,6 +241,23 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     }
   }, [state.currentStep]);
 
+  // Stop recording when reaching completion step
+  useEffect(() => {
+    const stopRecordingOnCompletion = async () => {
+      if (state.currentStep === 'completion' && isRecordingActive) {
+        try {
+          await sessionRecordingService.stopRecording();
+          setIsRecordingActive(false);
+          console.log('[EKYCWorkflow] Session recording stopped on completion');
+        } catch (err) {
+          console.warn('[EKYCWorkflow] Error stopping recording on completion:', err);
+        }
+      }
+    };
+    
+    stopRecordingOnCompletion();
+  }, [state.currentStep, isRecordingActive]);
+
   const getNextStep = (currentStep: WorkflowStep): WorkflowStep => {
     // Use the enabled steps list to determine the next step
     const currentIndex = enabledSteps.indexOf(currentStep);
@@ -215,6 +270,10 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   };
 
   const moveToNextStep = (nextStep: WorkflowStep) => {
+    // Log step completion and transition
+    uiEventLoggerService.logStepCompleted(state.currentStep);
+    uiEventLoggerService.logStepStarted(nextStep);
+    
     // Check if any upcoming step (including this one) needs the camera
     const stepsNeedingCamera: WorkflowStep[] = ['location', 'video_call', 'document', 'face'];
     const currentIndex = enabledSteps.indexOf(nextStep);
@@ -239,6 +298,10 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     try {
       setLoading(true);
       await kycApiService.submitConsent(state.sessionId, consent);
+      
+      // Log consent given event
+      uiEventLoggerService.logConsentGiven(consent);
+      
       const nextStep = getNextStep('consent');
       moveToNextStep(nextStep);
       // Start video stream if moving to a camera-dependent step
@@ -249,6 +312,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       }
     } catch (error) {
       console.error('Consent submission failed:', error);
+      uiEventLoggerService.logError('consent_failed', 'Failed to submit consent');
       setState(prev => ({
         ...prev,
         error: 'Failed to submit consent. Please try again.',
@@ -298,8 +362,25 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       
       setLocalStream(stream); // This triggers the useEffect to assign to video element
       
+      // Log camera started event
+      uiEventLoggerService.logEvent('camera_started');
+      
+      // Start session recording if enabled and not already recording
+      if (isRecordingEnabled && !isRecordingActive && SessionRecordingService.isSupported()) {
+        try {
+          const started = await sessionRecordingService.startRecording(state.sessionId, stream);
+          if (started) {
+            setIsRecordingActive(true);
+            console.log('[EKYCWorkflow] Session recording started');
+          }
+        } catch (recError) {
+          console.warn('[EKYCWorkflow] Could not start session recording:', recError);
+        }
+      }
+      
     } catch (error: any) {
       console.error('Failed to start video stream:', error);
+      uiEventLoggerService.logError('camera_failed', error.message);
       setState(prev => ({
         ...prev,
         error: `Failed to access camera: ${error.message}`,
@@ -307,7 +388,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     }
   };
 
-  const stopVideoStream = () => {
+  const stopVideoStream = async () => {
     if (localStream) {
       console.log('Stopping camera stream...');
       localStream.getTracks().forEach(track => {
@@ -320,6 +401,20 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
+      
+      // Log camera stopped event
+      uiEventLoggerService.logEvent('camera_stopped');
+      
+      // Stop session recording if active
+      if (isRecordingActive) {
+        try {
+          await sessionRecordingService.stopRecording();
+          setIsRecordingActive(false);
+          console.log('[EKYCWorkflow] Session recording stopped');
+        } catch (recError) {
+          console.warn('[EKYCWorkflow] Error stopping recording:', recError);
+        }
+      }
     }
   };
 
@@ -330,6 +425,12 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   };
 
   const handleDocumentVerified = async (documentId: string, ocrData: any) => {
+    // Log document verification event
+    uiEventLoggerService.logEvent('document_captured', {
+      documentType: ocrData?.documentType,
+      hasOcrData: !!ocrData?.extractedData,
+    });
+    
     // Extract only essential OCR data needed for subsequent steps.
     // Full OCR data remains stored in the backend against the sessionId.
     const essentialOcrData: EssentialOCRData = {
@@ -361,10 +462,12 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   };
 
   const handleQuestionnaireCompleted = () => {
+    uiEventLoggerService.logEvent('questionnaire_completed');
     moveToNextStep('completion');
   };
 
   const handleSkipQuestionnaire = () => {
+    uiEventLoggerService.logEvent('questionnaire_completed', { skipped: true });
     moveToNextStep('completion');
   };
 
@@ -527,6 +630,12 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     <div className="ekyc-workflow">
       <div className="workflow-header">
         <h1>eKYC Verification</h1>
+        {isRecordingActive && (
+          <div className="recording-indicator">
+            <span className="recording-dot"></span>
+            <span className="recording-text">Recording</span>
+          </div>
+        )}
         <div className="progress-indicator">
           <div className="progress-steps">
             {enabledSteps.map((step, index) => (
