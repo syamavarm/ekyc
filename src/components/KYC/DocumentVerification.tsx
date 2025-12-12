@@ -255,7 +255,7 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
         
         // Set completion instruction and wait for audio to finish
         if (onStepInstruction) {
-          await onStepInstruction('Document verification complete. Proceeding to next step.', true, true);
+          await onStepInstruction('Thanks for waiting.', true, true);
           audioPlayedRef.current.add('verified');
         }
         

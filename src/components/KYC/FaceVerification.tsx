@@ -298,7 +298,7 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
         result.liveness.checks
       );
       
-      const completeText = 'Verification complete. Proceeding to next step.';
+      const completeText = 'Face Verification process is complete.';
       
       if (result.overallResult) {
         onVerified();
@@ -334,7 +334,7 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
       uiEventLoggerService.logError('face_verification_error', err.message || 'Verification failed');
       stopAllAudio();
       if (onStepInstruction) {
-        await onStepInstruction('Verification complete. Proceeding to next step.', true, true);
+        await onStepInstruction('Thank you for your patience. Verification complete.', true, true);
       }
       setTimeout(() => onComplete(), 1500);
     }

@@ -26,9 +26,27 @@ const FormScreen: React.FC<FormScreenProps> = ({
   
   // Track audio played for instructions
   const audioPlayedRef = React.useRef<Set<number>>(new Set());
+  const hasStartedRef = React.useRef(false);
 
+  // Play intro first, then load fields
   useEffect(() => {
-    loadFields();
+    if (hasStartedRef.current) return;
+    hasStartedRef.current = true;
+    
+    const playIntroAndLoad = async () => {
+      // Play intro instruction first
+      if (onStepInstruction) {
+        await onStepInstruction(
+          'Please answer a few questions to complete your verification process.',
+          true,
+          true
+        );
+      }
+      // Then load the fields
+      await loadFields();
+    };
+    
+    playIntroAndLoad();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -119,7 +137,7 @@ const FormScreen: React.FC<FormScreenProps> = ({
         });
 
         if (onStepInstruction) {
-          await onStepInstruction('Form completed successfully. Proceeding to next step.', true, true);
+          await onStepInstruction('Thank you for your inputs.', true, true);
         }
         
         // Small pause then advance
@@ -212,7 +230,7 @@ const FormScreen: React.FC<FormScreenProps> = ({
     }
   };
 
-  // Loading state - spinner only, instruction shown in overlay
+  // Loading state (includes intro) - spinner only, instruction shown in overlay
   if (status === 'loading') {
     return (
       <div className="form-screen">
