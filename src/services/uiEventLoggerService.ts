@@ -40,6 +40,9 @@ export type UIEventType =
   | 'form_started'
   | 'form_answer_submitted'
   | 'form_completed'
+  // Voice input events
+  | 'voice_answer_recognized'
+  | 'voice_answer_failed'
   // Error & warning events
   | 'error_displayed'
   | 'warning_displayed'

@@ -614,8 +614,8 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       'location': 'Location',
       'video_call': 'Camera',
       'document': 'Document',
-      'face': 'Face & Liveness',
-      'form': 'Form',
+      'face': 'Face Verification',
+      'form': 'Data Collection',
       'completion': 'Complete',
     };
     return labels[step] || step.replace('_', ' ');

@@ -137,7 +137,7 @@ const LocationCapture: React.FC<LocationCaptureProps> = ({
       hasCompletedRef.current = true;
       
       if (onStepInstruction) {
-        await onStepInstruction('Location verification process complete.');
+        await onStepInstruction('Location capture process complete.');
       }
       
       // Small pause after audio, then advance

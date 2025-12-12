@@ -1556,6 +1556,380 @@
   text-align: center;
 }
 
+/* ============================================
+   VOICE INPUT STYLES
+   ============================================ */
+
+/* Field header with voice button */
+.field-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.field-header .field-text {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+/* Voice input button */
+.voice-input-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid #E5E7EB;
+  background: #FAFAFA;
+  color: #6B7280;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.voice-input-btn:hover {
+  border-color: #3B82F6;
+  background: #EFF6FF;
+  color: #3B82F6;
+}
+
+.voice-input-btn.listening {
+  border-color: #EF4444;
+  background: #FEF2F2;
+  color: #EF4444;
+  animation: voice-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
+  }
+}
+
+.voice-input-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Listening pulse ring */
+.listening-pulse {
+  position: absolute;
+  inset: -4px;
+  border: 2px solid #EF4444;
+  border-radius: 50%;
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+@keyframes pulse-ring {
+  0% { 
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% { 
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+/* Voice input wrapper for text fields */
+.voice-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.voice-input-wrapper .form-field-input {
+  width: 100%;
+  padding-right: 16px;
+}
+
+.voice-input-wrapper .form-field-input.interim {
+  color: #6B7280;
+  font-style: italic;
+}
+
+/* Input confirm button for text/numeric fields during first pass */
+.input-confirm-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+}
+
+.input-confirm-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+}
+
+.input-confirm-btn:active {
+  transform: translateY(0);
+}
+
+/* Voice listening indicator */
+.voice-listening-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, #FEF2F2 0%, #FFF5F5 100%);
+  border: 1px solid #FECACA;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #EF4444;
+}
+
+/* Voice waves animation */
+.voice-waves {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+}
+
+.voice-waves span {
+  width: 3px;
+  height: 8px;
+  background: #EF4444;
+  border-radius: 2px;
+  animation: voice-wave 0.8s ease-in-out infinite;
+}
+
+.voice-waves span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.voice-waves span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.voice-waves span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes voice-wave {
+  0%, 100% { 
+    height: 8px;
+  }
+  50% { 
+    height: 16px;
+  }
+}
+
+/* Voice error message */
+.voice-error {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #DC2626;
+  text-align: center;
+  animation: shake 0.4s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
+/* Voice interim hint (for multiple choice/yes-no) */
+.voice-interim-hint {
+  margin-top: 10px;
+  padding: 6px 12px;
+  background: #F0F9FF;
+  border: 1px solid #BAE6FD;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #0369A1;
+  font-style: italic;
+  text-align: center;
+}
+
+/* Yes/No container for voice */
+.yes-no-container {
+  width: 100%;
+}
+
+/* ============================================
+   FORM REVIEW SCREEN
+   ============================================ */
+
+.form-card-review {
+  background: rgba(255, 255, 255, 0.97);
+  border-radius: 12px;
+  padding: 20px;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  height: 500px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.review-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1F2937;
+  margin: 0 0 12px 0;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.review-subtitle {
+  font-size: 13px;
+  color: #6B7280;
+  margin: 0 0 16px 0;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.review-answers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.review-item {
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.review-question {
+  font-size: 12px;
+  color: #6B7280;
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.review-number {
+  font-weight: 600;
+  color: #3B82F6;
+  margin-right: 4px;
+}
+
+.review-answer {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1F2937;
+  word-break: break-word;
+}
+
+.review-empty {
+  color: #9CA3AF;
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* Clickable review items for editing */
+.review-item-clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.review-item-clickable:hover {
+  background: #EFF6FF;
+  border-color: #3B82F6;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+}
+
+.review-item-clickable:focus {
+  outline: none;
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.review-item-clickable .review-answer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.review-edit-icon {
+  font-size: 14px;
+  color: #3B82F6;
+  opacity: 1;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.review-item-clickable:hover .review-edit-icon {
+  transform: scale(1.1);
+  color: #2563EB;
+}
+
+/* Option number badge */
+.option-btn .option-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: #E5E7EB;
+  color: #6B7280;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.option-btn.selected .option-number {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
+/* Form field input styling improvements */
+.form-field-input {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 14px;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  background: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.form-field-input:focus {
+  outline: none;
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-field-input::placeholder {
+  color: #9CA3AF;
+}
+
 /* Completion screen within light theme */
 .ekyc-light .completion-screen {
   display: block;
@@ -1687,7 +2061,7 @@
 .completion-card {
   background: white;
   border-radius: 20px;
-  padding: 40px;
+  padding: 20px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   width: 100%;
   max-width: 600px;

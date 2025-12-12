@@ -105,8 +105,8 @@ const CompletionScreen: React.FC<CompletionScreenProps> = ({
           <div className="verification-items">
             {renderCompletedStep(required?.locationCapture ?? false, 'Location Capture')}
             {renderCompletedStep(required?.documentOCR ?? false, 'Document Verification')}
-            {renderCompletedStep(required?.secureVerification ?? false, 'Face & Liveness Check')}
-            {renderCompletedStep(required?.form ?? false, 'Form')}
+            {renderCompletedStep(required?.secureVerification ?? false, 'Face Verification')}
+            {renderCompletedStep(required?.form ?? false, 'Additional Data Collection')}
           </div>
         </div>
 
