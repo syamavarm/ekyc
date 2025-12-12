@@ -103,13 +103,35 @@ const FormScreen: React.FC<FormScreenProps> = ({
   // Debounce timer for answer matching
   const matchDebounceRef = React.useRef<NodeJS.Timeout | null>(null);
   
+  // Flag to prevent processing transcripts during question playback
+  // This prevents TTS audio from being captured as user input
+  const isReadyToListenRef = React.useRef<boolean>(false);
+  
+  // Track the field index when listening started to prevent cross-field interference
+  const listeningFieldIndexRef = React.useRef<number>(-1);
+  
   // Config
-  const MATCH_DEBOUNCE_MS = 800; // Wait 800ms after user stops speaking to match
+  const MATCH_DEBOUNCE_MS = 1200; // Wait 1.2s after user stops speaking to match
 
   // Try to match answer from transcript
   const tryMatchAnswer = useCallback((text: string) => {
     if (!text || fields.length === 0) return;
     if (text === lastProcessedTranscript.current) return;
+    
+    // Don't process if not ready to listen (TTS might still be playing)
+    if (!isReadyToListenRef.current) {
+      console.log('[FormScreen] Ignoring transcript - not ready to listen yet');
+      return;
+    }
+    
+    // Don't process if this transcript was from a different field
+    if (listeningFieldIndexRef.current !== currentFieldIndex) {
+      console.log('[FormScreen] Ignoring transcript - field index mismatch', {
+        listeningFor: listeningFieldIndexRef.current,
+        currentField: currentFieldIndex
+      });
+      return;
+    }
     
     const currentField = fields[currentFieldIndex];
     let answer: string | null = null;
@@ -142,8 +164,12 @@ const FormScreen: React.FC<FormScreenProps> = ({
     
     if (answer) {
       lastProcessedTranscript.current = text;
-      handleAnswerChange(currentField.id, answer, isDiscreteSelection);
+      
+      // Stop listening immediately to prevent further processing
+      isReadyToListenRef.current = false;
       SpeechRecognition.stopListening();
+      
+      handleAnswerChange(currentField.id, answer, isDiscreteSelection);
       resetTranscript();
       
       uiEventLoggerService.logEvent('voice_answer_recognized', {
@@ -158,6 +184,9 @@ const FormScreen: React.FC<FormScreenProps> = ({
   // Debounced transcript processing - waits for user to finish speaking
   useEffect(() => {
     if (!transcript) return;
+    
+    // Don't process if we're not ready to listen (e.g., TTS is playing)
+    if (!isReadyToListenRef.current) return;
     
     // Clear any pending match attempt
     if (matchDebounceRef.current) {
@@ -176,31 +205,45 @@ const FormScreen: React.FC<FormScreenProps> = ({
     };
   }, [transcript, tryMatchAnswer]);
 
-  // Toggle voice input
+  // Toggle voice input (manual mic button click)
   const toggleVoiceInput = () => {
     if (listening) {
-      SpeechRecognition.stopListening();
+      stopListeningAndReset();
     } else {
-      startListening();
+      startListening(currentFieldIndex);
     }
   };
 
   // Start listening in continuous mode
-  const startListening = () => {
+  // Safe to start immediately because we always stop listening BEFORE TTS plays
+  const startListening = (forFieldIndex: number) => {
     setVoiceError('');
     resetTranscript();
     lastProcessedTranscript.current = '';
+    listeningFieldIndexRef.current = forFieldIndex;
+    isReadyToListenRef.current = true;
     SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
+  };
+  
+  // Stop listening and reset all state
+  // This is critical to call BEFORE TTS plays to prevent TTS audio capture
+  const stopListeningAndReset = () => {
+    SpeechRecognition.stopListening();
+    isReadyToListenRef.current = false;
+    listeningFieldIndexRef.current = -1;
+    if (matchDebounceRef.current) clearTimeout(matchDebounceRef.current);
+    resetTranscript();
+    lastProcessedTranscript.current = '';
   };
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      SpeechRecognition.stopListening();
+      stopListeningAndReset();
       if (autoListenTimerRef.current) clearTimeout(autoListenTimerRef.current);
-      if (matchDebounceRef.current) clearTimeout(matchDebounceRef.current);
       if (autoAdvanceTimerRef.current) clearTimeout(autoAdvanceTimerRef.current);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Play intro first, then load fields
@@ -236,7 +279,11 @@ const FormScreen: React.FC<FormScreenProps> = ({
     const playInstructionThenListen = async () => {
       audioPlayedRef.current.add(currentFieldIndex);
       
-      // First, play the instruction audio and wait for it to complete
+      // CRITICAL: Stop listening BEFORE TTS plays
+      // This prevents TTS audio from being captured by the microphone
+      stopListeningAndReset();
+      
+      // Play the instruction audio and wait for it to complete
       if (onStepInstruction) {
         await onStepInstruction(currentField.field, true, true); // wait for audio
       }
@@ -247,13 +294,10 @@ const FormScreen: React.FC<FormScreenProps> = ({
       if (currentField.type === 'date') return;
       if (!browserSupportsSpeechRecognition) return;
       
-      // Small delay to ensure speech recognition is ready after any previous stopListening
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
-      if (cancelled) return;
-      
-      // Start listening - check current answers state via ref-like access
-      startListening();
+      // Start listening IMMEDIATELY after TTS finishes
+      // No delay needed because mic was OFF during TTS, so no TTS audio was captured
+      // This ensures we don't miss any user input
+      startListening(currentFieldIndex);
     };
     
     // Small initial delay before playing instruction
@@ -314,11 +358,8 @@ const FormScreen: React.FC<FormScreenProps> = ({
         });
 
         if (currentFieldIndex < fields.length - 1) {
-          // Stop listening and reset before advancing
-          SpeechRecognition.stopListening();
-          if (matchDebounceRef.current) clearTimeout(matchDebounceRef.current);
-          resetTranscript();
-          lastProcessedTranscript.current = '';
+          // Stop listening and reset before advancing to prevent interference
+          stopListeningAndReset();
           setCurrentFieldIndex(prev => prev + 1);
         } else {
           // Last question - go to review
@@ -378,10 +419,7 @@ const FormScreen: React.FC<FormScreenProps> = ({
     if (!answer) return;
     
     // Stop listening and reset
-    if (listening) SpeechRecognition.stopListening();
-    if (matchDebounceRef.current) clearTimeout(matchDebounceRef.current);
-    resetTranscript();
-    lastProcessedTranscript.current = '';
+    if (listening) stopListeningAndReset();
     
     // Log the answer
     uiEventLoggerService.logEvent('form_answer_submitted', {
