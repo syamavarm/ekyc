@@ -9,12 +9,13 @@ interface DocumentVerificationProps {
   onDocumentVerified: (documentId: string, ocrData: any) => void;
   loading: boolean;
   onStepInstruction?: (instruction: string, playAudio?: boolean, waitForAudio?: boolean) => Promise<void>;
+  mainVideoRef?: React.RefObject<HTMLVideoElement>;
 }
 
 // ID card standard aspect ratio (85.6mm x 53.98mm ≈ 1.586:1)
 const ID_CARD_ASPECT_RATIO = 1.586;
-// Card guide takes up 70% of the video width
-const CARD_WIDTH_PERCENT = 0.70;
+// Card guide takes up 65% of the video width (matches CSS overlay)
+const CARD_WIDTH_PERCENT = 0.65;
 
 type CaptureStep = 
   | 'capture-front' 
@@ -30,6 +31,7 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
   onDocumentVerified,
   loading,
   onStepInstruction,
+  mainVideoRef,
 }) => {
   const [step, setStep] = useState<CaptureStep>('capture-front');
   const [documentType] = useState<string>('auto');
@@ -107,26 +109,70 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
     };
   }, []);
 
-  // Calculate the card region coordinates
+  // Calculate the card region coordinates accounting for object-fit: cover
   const getCardRegion = useCallback(() => {
-    if (!localVideoRef.current) return null;
+    // Use main video ref if available, otherwise fall back to local
+    const videoElement = mainVideoRef?.current || localVideoRef.current;
+    if (!videoElement) return null;
     
-    const videoWidth = localVideoRef.current.videoWidth;
-    const videoHeight = localVideoRef.current.videoHeight;
+    // Native video dimensions
+    const nativeWidth = videoElement.videoWidth;
+    const nativeHeight = videoElement.videoHeight;
     
-    const cardWidth = videoWidth * CARD_WIDTH_PERCENT;
-    const cardHeight = cardWidth / ID_CARD_ASPECT_RATIO;
+    // Displayed element dimensions
+    const displayWidth = videoElement.clientWidth;
+    const displayHeight = videoElement.clientHeight;
     
-    const x = (videoWidth - cardWidth) / 2;
-    const y = (videoHeight - cardHeight) / 2;
+    if (!nativeWidth || !nativeHeight || !displayWidth || !displayHeight) {
+      return null;
+    }
     
-    return { x, y, width: cardWidth, height: cardHeight };
-  }, []);
+    // Calculate how object-fit: cover scales the video
+    const nativeAspect = nativeWidth / nativeHeight;
+    const displayAspect = displayWidth / displayHeight;
+    
+    let scale: number;
+    let offsetX = 0;
+    let offsetY = 0;
+    
+    if (nativeAspect > displayAspect) {
+      // Video is wider than container - height fits, width is cropped
+      scale = displayHeight / nativeHeight;
+      const scaledWidth = nativeWidth * scale;
+      offsetX = (scaledWidth - displayWidth) / 2; // Amount cropped from each side
+    } else {
+      // Video is taller than container - width fits, height is cropped
+      scale = displayWidth / nativeWidth;
+      const scaledHeight = nativeHeight * scale;
+      offsetY = (scaledHeight - displayHeight) / 2; // Amount cropped from top/bottom
+    }
+    
+    // The overlay is 65% of the display width, centered
+    const overlayWidth = displayWidth * CARD_WIDTH_PERCENT;
+    const overlayHeight = overlayWidth / ID_CARD_ASPECT_RATIO;
+    const overlayX = (displayWidth - overlayWidth) / 2;
+    const overlayY = (displayHeight - overlayHeight) / 2;
+    
+    // Convert overlay coordinates (in display space) to native video coordinates
+    // Account for the offset caused by object-fit: cover cropping
+    const nativeX = (overlayX + offsetX) / scale;
+    const nativeY = (overlayY + offsetY) / scale;
+    const nativeCardWidth = overlayWidth / scale;
+    const nativeCardHeight = overlayHeight / scale;
+    
+    return { 
+      x: nativeX, 
+      y: nativeY, 
+      width: nativeCardWidth, 
+      height: nativeCardHeight 
+    };
+  }, [mainVideoRef]);
 
   const captureImage = (): { file: File; imageUrl: string } | null => {
-    if (!localVideoRef.current) return null;
+    // Use main video ref if available, otherwise fall back to local
+    const videoElement = mainVideoRef?.current || localVideoRef.current;
+    if (!videoElement) return null;
 
-    const video = localVideoRef.current;
     const cardRegion = getCardRegion();
     
     if (!cardRegion) return null;
@@ -138,15 +184,15 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
     if (!ctx) return null;
 
     ctx.drawImage(
-      video,
+      videoElement,
       cardRegion.x, cardRegion.y, cardRegion.width, cardRegion.height,
       0, 0, cardRegion.width, cardRegion.height
     );
     
     const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
     const blob = dataURLtoBlob(dataUrl);
-        const file = new File([blob], 'document.jpg', { type: 'image/jpeg' });
-        const imageUrl = URL.createObjectURL(blob);
+    const file = new File([blob], 'document.jpg', { type: 'image/jpeg' });
+    const imageUrl = URL.createObjectURL(blob);
     
     return { file, imageUrl };
   };

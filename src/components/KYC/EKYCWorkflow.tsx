@@ -561,6 +561,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
             onDocumentVerified={handleDocumentVerified}
             loading={loading}
             onStepInstruction={updateStepInstruction}
+            mainVideoRef={videoRef}
           />
         );
 
