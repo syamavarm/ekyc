@@ -51,35 +51,107 @@
 }
 
 /* Recording Badge - Top Right */
-.ekyc-light .recording-badge {
+/* Video overlay badges container */
+.ekyc-light .video-overlay-badges {
   position: absolute;
   top: 16px;
-  right: 24px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+}
+
+.ekyc-light .recording-badge {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(220, 38, 38, 0.9);
+  backdrop-filter: blur(4px);
   padding: 6px 12px;
-  border-radius: 20px;
+  border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
-  color: #DC2626;
+  color: #fff;
   letter-spacing: 0.5px;
-  z-index: 100;
 }
 
 .ekyc-light .recording-badge .recording-dot {
   width: 8px;
   height: 8px;
-  background: #DC2626;
+  background: #fff;
   border-radius: 50%;
   animation: pulse-rec 1.2s ease-in-out infinite;
 }
 
 @keyframes pulse-rec {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(1.1); }
+  50% { opacity: 0.5; transform: scale(1.1); }
+}
+
+/* Network Indicator - top right of video */
+.ekyc-light .network-indicator {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  padding: 8px 12px;
+  border-radius: 6px;
+  z-index: 10;
+}
+
+.ekyc-light .signal-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+}
+
+.ekyc-light .signal-bar {
+  width: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 1px;
+  transition: background 0.2s ease;
+}
+
+.ekyc-light .signal-bar:nth-child(1) { height: 4px; }
+.ekyc-light .signal-bar:nth-child(2) { height: 8px; }
+.ekyc-light .signal-bar:nth-child(3) { height: 12px; }
+.ekyc-light .signal-bar:nth-child(4) { height: 16px; }
+
+.ekyc-light .signal-bar.active {
+  background: #4ade80;
+}
+
+/* Color coding based on signal strength - cellular */
+.ekyc-light .network-indicator.strength-4 .signal-bar.active { background: #4ade80; }
+.ekyc-light .network-indicator.strength-3 .signal-bar.active { background: #a3e635; }
+.ekyc-light .network-indicator.strength-2 .signal-bar.active { background: #facc15; }
+.ekyc-light .network-indicator.strength-1 .signal-bar.active { background: #f97316; }
+.ekyc-light .network-indicator.strength-0 .signal-bar.active { background: #ef4444; }
+
+/* WiFi icon styles */
+.ekyc-light .wifi-icon {
+  color: #4ade80;
+  flex-shrink: 0;
+}
+
+/* WiFi icon color based on strength */
+.ekyc-light .network-indicator.wifi.strength-4 .wifi-icon { color: #4ade80; }
+.ekyc-light .network-indicator.wifi.strength-3 .wifi-icon { color: #a3e635; }
+.ekyc-light .network-indicator.wifi.strength-2 .wifi-icon { color: #facc15; }
+.ekyc-light .network-indicator.wifi.strength-1 .wifi-icon { color: #f97316; }
+.ekyc-light .network-indicator.wifi.strength-0 .wifi-icon { color: #ef4444; }
+
+.ekyc-light .network-type {
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.5px;
 }
 
 /* Main Layout Grid */
@@ -118,9 +190,6 @@
 }
 
 .ekyc-light .video-overlay-badge {
-  position: absolute;
-  top: 16px;
-  left: 16px;
   display: flex;
   align-items: center;
   gap: 6px;

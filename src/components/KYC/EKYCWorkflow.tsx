@@ -103,6 +103,57 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   // Step instruction - displayed in overlay AND played as audio
   const [stepInstruction, setStepInstruction] = useState<string>('');
 
+  // Network strength monitoring - only UI-relevant state
+  const [networkInfo, setNetworkInfo] = useState({
+    strength: 4,      // 0-4 bars
+    isWifi: true,     // Show WiFi icon vs signal bars
+    displayType: 'WiFi', // Label to show
+  });
+
+  // Monitor network status
+  useEffect(() => {
+    const updateNetworkInfo = () => {
+      const nav = navigator as any;
+      const connection = nav.connection || nav.mozConnection || nav.webkitConnection;
+      
+      if (connection) {
+        const downlink = connection.downlink || 10;
+        const rtt = connection.rtt || 50;
+        const type = connection.type; // May be undefined on desktop
+        
+        // Calculate strength from speed
+        let strength = 0;
+        if (downlink >= 10) strength = 4;
+        else if (downlink >= 5) strength = 3;
+        else if (downlink >= 2) strength = 2;
+        else if (downlink >= 0.5) strength = 1;
+        
+        // Detect connection type (WiFi vs cellular)
+        let isWifi = false;
+        let displayType = 'Slow';
+        
+        if (type === 'wifi') { isWifi = true; displayType = 'WiFi'; }
+        else if (type === 'ethernet') { isWifi = true; displayType = 'Ethernet'; }
+        else if (type === 'cellular') { isWifi = false; displayType = 'Cellular'; }
+        else if (downlink >= 5 && rtt < 100) { isWifi = true; displayType = 'WiFi'; }
+        else if (downlink >= 10) { isWifi = true; displayType = 'Fast'; }
+        else if (downlink >= 2) { isWifi = false; displayType = 'Good'; }
+        
+        setNetworkInfo({ strength, isWifi, displayType });
+      }
+    };
+
+    updateNetworkInfo();
+
+    const nav = navigator as any;
+    const connection = nav.connection || nav.mozConnection || nav.webkitConnection;
+    
+    if (connection) {
+      connection.addEventListener('change', updateNetworkInfo);
+      return () => connection.removeEventListener('change', updateNetworkInfo);
+    }
+  }, []);
+
   // Calculate enabled steps based on workflow configuration
   // Location capture now comes AFTER document verification to enable address comparison
   const getEnabledSteps = (): WorkflowStep[] => {
@@ -647,14 +698,6 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
 
   return (
     <div className={`ekyc-workflow ekyc-light ${isFullPageStep ? 'full-page-step' : ''}`}>
-      {/* Recording indicator - top right */}
-        {isRecordingActive && (
-        <div className="recording-badge">
-            <span className="recording-dot"></span>
-          <span>REC</span>
-        </div>
-      )}
-
       {/* Full page centered content for consent/completion steps */}
       {isFullPageStep ? (
         <div className="ekyc-centered-content">
@@ -685,9 +728,38 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
                     muted
                     className={`main-video-preview ${isDocumentStep ? 'no-mirror' : ''}`}
                   />
-                  <div className="video-overlay-badge">
-                    <span className="live-dot"></span>
-                    LIVE
+                  <div className="video-overlay-badges">
+                    <div className="video-overlay-badge">
+                      <span className="live-dot"></span>
+                      LIVE
+                    </div>
+                    {isRecordingActive && (
+                      <div className="recording-badge">
+                        <span className="recording-dot"></span>
+                        REC
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Network strength indicator - top right */}
+                  <div className={`network-indicator strength-${networkInfo.strength} ${networkInfo.isWifi ? 'wifi' : 'cellular'}`}>
+                    {networkInfo.isWifi ? (
+                      /* WiFi icon */
+                      <svg className="wifi-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M12 18c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm-4.9-2.3l1.4 1.4C9.5 16.5 10.7 16 12 16s2.5.5 3.5 1.1l1.4-1.4C15.6 14.6 13.9 14 12 14s-3.6.6-4.9 1.7zm-2.8-2.8l1.4 1.4C7.3 13.2 9.5 12 12 12s4.7 1.2 6.3 2.3l1.4-1.4C17.7 11.2 15 10 12 10s-5.7 1.2-7.7 2.9zM1.5 10l1.4 1.4C5.1 9.2 8.4 8 12 8s6.9 1.2 9.1 3.4L22.5 10C19.8 7.4 16.1 6 12 6S4.2 7.4 1.5 10z"/>
+                      </svg>
+                    ) : (
+                      /* Cellular signal bars */
+                      <div className="signal-bars">
+                        {[1, 2, 3, 4].map((bar) => (
+                          <div
+                            key={bar}
+                            className={`signal-bar ${bar <= networkInfo.strength ? 'active' : ''}`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    <span className="network-type">{networkInfo.displayType}</span>
                   </div>
                   
                   {/* ID Card overlay for document step */}
