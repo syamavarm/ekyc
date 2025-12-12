@@ -13,7 +13,7 @@ interface WorkflowConfiguration {
     locationCapture: boolean;
     documentOCR: boolean;
     secureVerification: boolean;
-    questionnaire: boolean;
+    form: boolean;
     locationRadiusKm?: number;
   };
   formId?: string;
@@ -154,7 +154,7 @@ const WorkflowResolver: React.FC<WorkflowResolverProps> = ({ configId }) => {
       onCancel={handleStartNew}
       workflowConfigId={configId}
       workflowSteps={config.steps}
-      questionnaireFormId={config.formId}
+      formFieldSetId={config.formId}
     />
   );
 };

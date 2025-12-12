@@ -10,7 +10,7 @@ import {
   LocationData,
   DocumentData,
   SecureVerificationData,
-  QuestionnaireData,
+  FormData,
   VerificationResults,
 } from '../types/kyc.types';
 import { v4 as uuidv4 } from 'uuid';
@@ -220,25 +220,25 @@ export class KYCSessionManager {
   }
 
   /**
-   * Update questionnaire data
+   * Update form data
    */
-  updateQuestionnaire(
+  updateForm(
     sessionId: string,
-    questionnaire: QuestionnaireData
+    form: FormData
   ): boolean {
     const session = this.sessions.get(sessionId);
     if (!session) return false;
     
-    session.questionnaire = questionnaire;
-    session.verificationResults.questionnaireVerified = questionnaire.passed;
+    session.form = form;
+    session.verificationResults.formVerified = form.passed;
     
-    if (questionnaire.passed) {
-      session.status = 'questionnaire_completed';
+    if (form.passed) {
+      session.status = 'form_completed';
     }
     
     session.updatedAt = new Date();
     
-    console.log(`[KYCSessionManager] Questionnaire updated for session: ${sessionId}`);
+    console.log(`[KYCSessionManager] Form updated for session: ${sessionId}`);
     return true;
   }
 
@@ -254,7 +254,7 @@ export class KYCSessionManager {
       locationCapture: boolean;
       documentOCR: boolean;
       secureVerification: boolean;
-      questionnaire: boolean;
+      form: boolean;
     };
   } {
     const session = this.sessions.get(sessionId);
@@ -273,7 +273,7 @@ export class KYCSessionManager {
           locationCapture: true,
           documentOCR: true,
           secureVerification: true,
-          questionnaire: false,
+          form: false,
         },
       };
     }
@@ -287,7 +287,7 @@ export class KYCSessionManager {
       locationCapture: workflowSteps?.locationCapture ?? true,
       documentOCR: workflowSteps?.documentOCR ?? true,
       secureVerification: workflowSteps?.secureVerification ?? true,
-      questionnaire: workflowSteps?.questionnaire ?? false,
+      form: workflowSteps?.form ?? false,
     };
     
     console.log(`[KYCSessionManager] Required steps for session ${sessionId}:`, requiredSteps);
@@ -328,10 +328,10 @@ export class KYCSessionManager {
       }
     }
     
-    // Questionnaire check - only if required
-    if (requiredSteps.questionnaire) {
+    // Form check - only if required
+    if (requiredSteps.form) {
       totalChecks++;
-      if (results.questionnaireVerified) {
+      if (results.formVerified) {
         score++;
       } else {
         allRequiredVerified = false;

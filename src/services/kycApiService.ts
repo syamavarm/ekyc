@@ -99,19 +99,19 @@ export interface SecureVerificationResponse {
   message: string;
 }
 
-export interface Question {
+export interface FormField {
   id: string;
-  question: string;
+  field: string;
   type: 'text' | 'numeric' | 'date' | 'multiple_choice' | 'yes_no';
   options?: string[];
   category: string;
 }
 
-export interface QuestionnaireResponse {
+export interface FormResponse {
   success: boolean;
-  questionnaire: {
-    questions: Array<{
-      question: string;
+  form: {
+    fields: Array<{
+      field: string;
       userAnswer: string;
       isCorrect: boolean;
     }>;
@@ -121,11 +121,15 @@ export interface QuestionnaireResponse {
   message: string;
 }
 
+// Legacy alias
+export type Question = FormField;
+export type QuestionnaireResponse = FormResponse;
+
 export interface RequiredSteps {
   locationCapture: boolean;
   documentOCR: boolean;
   secureVerification: boolean;
-  questionnaire: boolean;
+  form: boolean;
 }
 
 export interface CompleteKYCResponse {
@@ -136,7 +140,7 @@ export interface CompleteKYCResponse {
     documentVerified: boolean;
     secureVerified: boolean;
     locationVerified: boolean;
-    questionnaireVerified?: boolean;
+    formVerified?: boolean;
     overallVerified: boolean;
   };
   requiredSteps: RequiredSteps;
@@ -154,7 +158,7 @@ export interface SessionSummary {
   location?: LocationData;
   document?: any;
   secureVerification?: any;
-  questionnaire?: any;
+  form?: any;
   verificationResults: any;
   overallScore?: number;
 }
@@ -328,57 +332,57 @@ class KYCApiService {
   }
 
   /**
-   * Get available question sets
+   * Get available field sets
    */
-  async getQuestionSets(): Promise<string[]> {
-    const response = await fetch(`${API_BASE_URL}/kyc/questionnaire/sets`);
+  async getFieldSets(): Promise<string[]> {
+    const response = await fetch(`${API_BASE_URL}/kyc/form/sets`);
 
     if (!response.ok) {
-      throw new Error('Failed to get question sets');
+      throw new Error('Failed to get field sets');
     }
 
     const data = await response.json();
-    return data.questionSets;
+    return data.fieldSets;
   }
 
   /**
-   * Get questions for session
+   * Get form fields for session
    */
-  async getQuestions(
+  async getFormFields(
     sessionId: string,
-    questionSet: string = 'basic',
+    fieldSet: string = 'account_opening',
     includeOptional: boolean = false
-  ): Promise<Question[]> {
+  ): Promise<FormField[]> {
     const response = await fetch(
-      `${API_BASE_URL}/kyc/questionnaire/questions?sessionId=${sessionId}&questionSet=${questionSet}&includeOptional=${includeOptional}`
+      `${API_BASE_URL}/kyc/form/fields?sessionId=${sessionId}&fieldSet=${fieldSet}&includeOptional=${includeOptional}`
     );
 
     if (!response.ok) {
-      throw new Error('Failed to get questions');
+      throw new Error('Failed to get form fields');
     }
 
     const data = await response.json();
-    return data.questions;
+    return data.fields;
   }
 
   /**
-   * Submit questionnaire answers
+   * Submit form answers
    */
-  async submitQuestionnaire(
+  async submitForm(
     sessionId: string,
-    questionSet: string,
+    fieldSet: string,
     answers: Record<string, string>
-  ): Promise<QuestionnaireResponse> {
-    const response = await fetch(`${API_BASE_URL}/kyc/questionnaire/submit`, {
+  ): Promise<FormResponse> {
+    const response = await fetch(`${API_BASE_URL}/kyc/form/submit`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ sessionId, questionSet, answers }),
+      body: JSON.stringify({ sessionId, fieldSet, answers }),
     });
 
     if (!response.ok) {
-      throw new Error('Failed to submit questionnaire');
+      throw new Error('Failed to submit form');
     }
 
     return response.json();

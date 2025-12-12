@@ -55,12 +55,13 @@ app.use((req, res) => {
       'POST /kyc/document/ocr',
       'POST /kyc/face/verify',
       'POST /kyc/liveness-check',
-      'GET /kyc/questionnaire/sets',
-      'GET /kyc/questionnaire/questions',
-      'POST /kyc/questionnaire/submit',
+      'GET /kyc/form/sets',
+      'GET /kyc/form/fields',
+      'POST /kyc/form/submit',
       'POST /kyc/complete',
       'GET /kyc/session/:id/summary',
       'GET /kyc/session/:id',
+      'GET /kyc/session/:id/formdata',
       'GET /kyc/sessions',
       // Session Recording Routes
       'POST /admin/session/recording/chunk',
@@ -91,7 +92,7 @@ server.listen(PORT, () => {
   console.log(`   ✓ REST API (KYC Workflow)`);
   console.log(`   ✓ Document Upload & OCR`);
   console.log(`   ✓ Face Verification & Liveness Check`);
-  console.log(`   ✓ Questionnaire System`);
+  console.log(`   ✓ Form System`);
   console.log(`   ✓ Session Management`);
   console.log(`   ✓ Report Generation`);
   console.log(`\n🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);

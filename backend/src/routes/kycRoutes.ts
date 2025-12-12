@@ -13,7 +13,7 @@ import { DocumentService } from '../services/documentService';
 import { FaceVerificationService } from '../services/faceVerificationService';
 import { LivenessCheckService } from '../services/livenessCheckService';
 import { ReportGenerationService } from '../services/reportGenerationService';
-import { QuestionnaireService } from '../services/questionnaireService';
+import { FormService } from '../services/formService';
 import { sessionTimelineService } from '../services/sessionTimelineService';
 import {
   StartKYCRequest,
@@ -68,7 +68,7 @@ const livenessCheckService = new LivenessCheckService({
   confidenceThreshold: 0.8,
 });
 const reportService = new ReportGenerationService();
-const questionnaireService = new QuestionnaireService();
+const formService = new FormService();
 
 /**
  * POST /kyc/start
@@ -773,7 +773,7 @@ router.post('/complete', async (req: Request, res: Response) => {
     // Get updated session for status
     const updatedSession = sessionManager.getSession(sessionId);
     
-    // Auto-generate and save the KYC report (only if not already generated)
+    // Auto-generate and save the KYC report and combined data JSON
     if (updatedSession) {
       const existingReport = reportService.getReportPath(sessionId);
       if (!existingReport) {
@@ -786,6 +786,15 @@ router.post('/complete', async (req: Request, res: Response) => {
         }
       } else {
         console.log(`[KYC Routes] Report already exists for session ${sessionId}`);
+      }
+      
+      // Generate form data JSON (OCR + Form fields)
+      try {
+        const formData = reportService.generateFormDataJSON(updatedSession);
+        console.log(`[KYC Routes] Form data JSON saved: ${formData.filepath}`);
+      } catch (dataError) {
+        console.error('[KYC Routes] Failed to generate form data JSON:', dataError);
+        // Don't fail the completion if form data generation fails
       }
     }
     
@@ -936,6 +945,47 @@ router.get('/session/:id', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /kyc/session/:id/formdata
+ * Get form data as JSON (OCR + Form field values)
+ * Returns a flat JSON with document data and form responses
+ */
+router.get('/session/:id/formdata', async (req: Request, res: Response) => {
+  try {
+    const sessionId = req.params.id;
+    
+    // Try to load existing form data
+    let formData = reportService.loadFormData(sessionId);
+    
+    if (!formData) {
+      // Generate it from the session if not exists
+      const session = sessionManager.getSession(sessionId);
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          error: 'Session not found',
+          message: `Session ${sessionId} not found`,
+        } as ErrorResponse);
+      }
+      
+      const result = reportService.generateFormDataJSON(session);
+      formData = result.data;
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: formData,
+    });
+  } catch (error) {
+    console.error('[KYC Routes] Error getting form data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: 'Failed to get form data',
+    } as ErrorResponse);
+  }
+});
+
+/**
  * GET /kyc/sessions
  * Get all sessions (for admin/monitoring)
  * Returns lean session data without binary buffers to minimize payload size.
@@ -963,64 +1013,66 @@ router.get('/sessions', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /kyc/questionnaire/sets
- * Get available question sets
+ * GET /kyc/form/sets
+ * Get available field sets
  */
-router.get('/questionnaire/sets', async (req: Request, res: Response) => {
+router.get('/form/sets', async (req: Request, res: Response) => {
   try {
-    const setNames = questionnaireService.getAvailableQuestionSets();
+    const setNames = formService.getAvailableFieldSets();
     
-    // Build detailed question set info for admin UI
-    const questionSets = setNames.map(name => {
-      const setDetails = questionnaireService.getQuestionSetDetails(name);
-      const questionCount = setDetails 
+    // Build detailed field set info for admin UI
+    const fieldSets = setNames.map(name => {
+      const setDetails = formService.getFieldSetDetails(name);
+      const fieldCount = setDetails 
         ? setDetails.required.length + setDetails.optional.length 
         : 0;
       
       // Generate description based on set name
       const descriptions: Record<string, string> = {
-        'basic': 'Basic identity verification questions (name, DOB, document number)',
-        'comprehensive': 'Full verification with detailed document and personal questions',
-        'presence': 'Presence verification questions to confirm live participation',
+        'account_opening': 'Savings/Current account opening - purpose, employment, income source',
+        'credit_card': 'Credit card application - income, employment, existing credit, spending patterns',
+        'investment': 'Investment/Mutual fund account - risk tolerance, investment goals, experience',
+        'loan_application': 'Loan application - loan type, amount, income, credit history',
       };
       
       // Generate display name
       const displayNames: Record<string, string> = {
-        'basic': 'Basic Verification',
-        'comprehensive': 'Comprehensive Verification',
-        'presence': 'Presence Verification',
+        'account_opening': '🏦 Account Opening',
+        'credit_card': '💳 Credit Card Application',
+        'investment': '📈 Investment Account',
+        'loan_application': '🏠 Loan Application',
       };
       
       return {
         id: name,
-        name: displayNames[name] || name.charAt(0).toUpperCase() + name.slice(1),
-        description: descriptions[name] || `Question set: ${name}`,
-        questionCount,
+        name: displayNames[name] || name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, ' '),
+        description: descriptions[name] || `Field set: ${name}`,
+        fieldCount,
       };
     });
     
     res.status(200).json({
       success: true,
-      questionSets,
-      message: 'Available question sets retrieved',
+      fieldSets,
+      message: 'Available field sets retrieved',
     });
   } catch (error) {
-    console.error('[KYC Routes] Error getting question sets:', error);
+    console.error('[KYC Routes] Error getting field sets:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
-      message: 'Failed to get question sets',
+      message: 'Failed to get field sets',
     } as ErrorResponse);
   }
 });
 
 /**
- * GET /kyc/questionnaire/questions
- * Get questions for a session
+ * GET /kyc/form/fields
+ * Get form fields for a session
  */
-router.get('/questionnaire/questions', async (req: Request, res: Response) => {
+router.get('/form/fields', async (req: Request, res: Response) => {
   try {
-    const { sessionId, questionSet = 'basic', includeOptional = 'false' } = req.query;
+    const { sessionId, fieldSet = 'account_opening', includeOptional = 'false' } = req.query;
     
     if (!sessionId) {
       return res.status(400).json({
@@ -1039,49 +1091,39 @@ router.get('/questionnaire/questions', async (req: Request, res: Response) => {
       } as ErrorResponse);
     }
     
-    // Check if document verification is required by workflow
-    // Only require document verification if:
-    // 1. Workflow includes document OCR step, AND
-    // 2. Question set is not 'presence' (presence questions don't need document data)
-    const workflowRequiresDocument = session.workflowSteps?.documentOCR !== false;
-    const questionSetRequiresDocument = questionSet !== 'presence';
+    // Note: Form-specific field sets (account_opening, credit_card, investment, loan_application)
+    // don't require document data as they collect application-specific information
+    // Document verification is handled separately in the workflow
     
-    if (workflowRequiresDocument && questionSetRequiresDocument && !session.document?.isValid) {
-      // Document verification is required but not completed
-      // Log a warning but allow questionnaire to proceed
-      // Answers will be collected but not verified against document data
-      console.warn(`[KYC Routes] Questionnaire requested without document verification for session ${sessionId}`);
-    }
-    
-    const questions = questionnaireService.getQuestions(
-      questionSet as string,
+    const fields = formService.getFields(
+      fieldSet as string,
       includeOptional === 'true'
     );
     
     res.status(200).json({
       success: true,
       sessionId,
-      questionSet,
-      questions,
-      message: 'Questions retrieved successfully',
+      fieldSet,
+      fields,
+      message: 'Form fields retrieved successfully',
     });
   } catch (error: any) {
-    console.error('[KYC Routes] Error getting questions:', error);
+    console.error('[KYC Routes] Error getting form fields:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
-      message: error.message || 'Failed to get questions',
+      message: error.message || 'Failed to get form fields',
     } as ErrorResponse);
   }
 });
 
 /**
- * POST /kyc/questionnaire/submit
- * Submit questionnaire answers
+ * POST /kyc/form/submit
+ * Submit form answers
  */
-router.post('/questionnaire/submit', async (req: Request, res: Response) => {
+router.post('/form/submit', async (req: Request, res: Response) => {
   try {
-    const { sessionId, questionSet = 'basic', answers } = req.body;
+    const { sessionId, fieldSet = 'account_opening', answers } = req.body;
     
     if (!sessionId) {
       return res.status(400).json({
@@ -1108,8 +1150,8 @@ router.post('/questionnaire/submit', async (req: Request, res: Response) => {
       } as ErrorResponse);
     }
     
-    // Get questions
-    const questions = questionnaireService.getQuestions(questionSet, true);
+    // Get fields
+    const fields = formService.getFields(fieldSet, true);
     
     // Convert answers object to Map
     const answersMap = new Map<string, string>();
@@ -1121,72 +1163,72 @@ router.post('/questionnaire/submit', async (req: Request, res: Response) => {
     const documentData = session.document?.ocrResults?.extractedData;
     
     // Verify answers
-    const questionnaireData = questionnaireService.verifyAnswers(
-      questions,
+    const formData = formService.verifyAnswers(
+      fields,
       answersMap,
       documentData
     );
     
     // Update session
-    sessionManager.updateQuestionnaire(sessionId, questionnaireData);
+    sessionManager.updateForm(sessionId, formData);
     
     // Log backend decision to session timeline for replay
-    sessionTimelineService.saveBackendDecision(sessionId, 'questionnaire_result', questionnaireData.passed, {
-      score: questionnaireData.score,
+    sessionTimelineService.saveBackendDecision(sessionId, 'form_result', formData.passed, {
+      score: formData.score,
       additionalData: {
-        questionSet,
-        totalQuestions: questionnaireData.questions.length,
+        fieldSet,
+        totalFields: formData.fields.length,
       },
     });
     
     res.status(200).json({
-      success: questionnaireData.passed,
+      success: formData.passed,
       sessionId,
-      questionnaire: questionnaireData,
-      message: questionnaireData.passed
-        ? 'Questionnaire completed successfully'
-        : 'Questionnaire failed - answers do not match expected values',
+      form: formData,
+      message: formData.passed
+        ? 'Form completed successfully'
+        : 'Form failed - answers do not match expected values',
     });
   } catch (error: any) {
-    console.error('[KYC Routes] Error submitting questionnaire:', error);
+    console.error('[KYC Routes] Error submitting form:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
-      message: error.message || 'Failed to submit questionnaire',
+      message: error.message || 'Failed to submit form',
     } as ErrorResponse);
   }
 });
 
 /**
- * GET /kyc/questionnaire/set/:name
- * Get details of a specific question set
+ * GET /kyc/form/set/:name
+ * Get details of a specific field set
  */
-router.get('/questionnaire/set/:name', async (req: Request, res: Response) => {
+router.get('/form/set/:name', async (req: Request, res: Response) => {
   try {
     const { name } = req.params;
     
-    const questionSet = questionnaireService.getQuestionSetDetails(name);
+    const fieldSet = formService.getFieldSetDetails(name);
     
-    if (!questionSet) {
+    if (!fieldSet) {
       return res.status(404).json({
         success: false,
-        error: 'Question set not found',
-        message: `Question set '${name}' not found`,
+        error: 'Field set not found',
+        message: `Field set '${name}' not found`,
       } as ErrorResponse);
     }
     
     res.status(200).json({
       success: true,
       name,
-      questionSet,
-      message: 'Question set details retrieved',
+      fieldSet,
+      message: 'Field set details retrieved',
     });
   } catch (error) {
-    console.error('[KYC Routes] Error getting question set:', error);
+    console.error('[KYC Routes] Error getting field set:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error',
-      message: 'Failed to get question set details',
+      message: 'Failed to get field set details',
     } as ErrorResponse);
   }
 });
@@ -1320,6 +1362,6 @@ export {
   faceVerificationService, 
   livenessCheckService, 
   reportService,
-  questionnaireService 
+  formService 
 };
 

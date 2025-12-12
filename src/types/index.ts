@@ -29,7 +29,7 @@ export interface WorkflowSteps {
   locationCapture: boolean;
   documentOCR: boolean;
   secureVerification: boolean;
-  questionnaire: boolean;
+  form: boolean;
   locationRadiusKm?: number;
   enableSessionRecording?: boolean;
 }

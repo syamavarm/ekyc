@@ -47,7 +47,7 @@ interface SessionDetails {
   location?: any;
   document?: any;
   secureVerification?: any;
-  questionnaire?: any;
+  form?: any;
   verificationResults?: any;
   overallScore?: number;
 }
@@ -63,6 +63,7 @@ interface SessionDetailsResponse {
   documents: DocumentInfo[];
   ocrResults: any;
   reportData: any;
+  formData: any;
 }
 
 interface SessionReplayPageProps {
@@ -80,7 +81,7 @@ const SessionReplayPage: React.FC<SessionReplayPageProps> = ({ sessionId, onBack
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [filterType, setFilterType] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<'timeline' | 'documents' | 'ocr' | 'report'>('timeline');
+  const [activeTab, setActiveTab] = useState<'timeline' | 'documents' | 'ocr' | 'data' | 'report'>('timeline');
   
   // Chunked playback state
   const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
@@ -248,7 +249,7 @@ const SessionReplayPage: React.FC<SessionReplayPageProps> = ({ sessionId, onBack
           return result ? '📄' : '📄';
         case 'location_check':
           return result ? '📍' : '📍';
-        case 'questionnaire_result':
+        case 'form_result':
           return result ? '❓' : '❓';
         case 'session_complete':
           return result ? '🎉' : '⚠️';
@@ -300,8 +301,8 @@ const SessionReplayPage: React.FC<SessionReplayPageProps> = ({ sessionId, onBack
           return `Document OCR: ${result}`;
         case 'location_check':
           return `Location: ${result}`;
-        case 'questionnaire_result':
-          return `Questionnaire: ${result} (${((entry.data.score || 0) * 100).toFixed(0)}%)`;
+        case 'form_result':
+          return `Form: ${result} (${((entry.data.score || 0) * 100).toFixed(0)}%)`;
         case 'session_complete':
           return `Session ${result === 'PASS' ? 'Completed' : 'Failed'}`;
         default:
@@ -426,7 +427,7 @@ const SessionReplayPage: React.FC<SessionReplayPageProps> = ({ sessionId, onBack
             </button>
           )}
           <h1>🎬 Session Replay</h1>
-          <span className="session-id">Session: {sessionId.slice(0, 8)}...</span>
+          <span className="session-id">Session: {sessionId}</span>
         </div>
         <div className="header-right">
           {timeline?.recordingMetadata && (
@@ -562,6 +563,12 @@ const SessionReplayPage: React.FC<SessionReplayPageProps> = ({ sessionId, onBack
               onClick={() => setActiveTab('ocr')}
             >
               🔍 OCR Data
+            </button>
+            <button 
+              className={`tab-btn ${activeTab === 'data' ? 'active' : ''}`}
+              onClick={() => setActiveTab('data')}
+            >
+              📦 Data
             </button>
             <button 
               className={`tab-btn ${activeTab === 'report' ? 'active' : ''}`}
@@ -818,6 +825,61 @@ const SessionReplayPage: React.FC<SessionReplayPageProps> = ({ sessionId, onBack
                 <div className="no-data">
                   <span className="no-data-icon">🔍</span>
                   <p>No OCR data available for this session</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Form Data Tab */}
+          {activeTab === 'data' && (
+            <div className="data-tab">
+              <h2>📦 Form Data</h2>
+              
+              {sessionDetails?.formData ? (
+                <div className="form-data-container">
+                  {/* Download Button */}
+                  <div className="data-actions">
+                    <button 
+                      className="download-btn"
+                      onClick={() => {
+                        const blob = new Blob([JSON.stringify(sessionDetails.formData, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `formdata_${sessionId}.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      ⬇️ Download JSON
+                    </button>
+                  </div>
+
+                  {/* All Fields */}
+                  <div className="data-section">
+                    <h3>📋 Collected Data</h3>
+                    <div className="data-grid">
+                      {Object.entries(sessionDetails.formData).map(([key, value]) => (
+                        <div key={key} className="data-field">
+                          <label>{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</label>
+                          <span>{String(value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Raw JSON Preview */}
+                  <div className="data-section">
+                    <h3>🔧 Raw JSON</h3>
+                    <pre className="json-preview">
+                      {JSON.stringify(sessionDetails.formData, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              ) : (
+                <div className="no-data-message">
+                  <p>No form data available for this session.</p>
+                  <p className="hint">Form data is generated when a KYC session is completed.</p>
                 </div>
               )}
             </div>

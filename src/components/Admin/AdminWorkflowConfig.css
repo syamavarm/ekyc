@@ -411,7 +411,17 @@
 }
 
 .checks-cell {
-  min-width: 200px;
+  min-width: 180px;
+}
+
+.score-cell {
+  min-width: 70px;
+}
+
+.score-value {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #0f172a;
 }
 
 .checks-grid {
@@ -468,15 +478,7 @@
   opacity: 0.8;
 }
 
-.overall-score {
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-  color: #64748b;
-}
-
-.overall-score strong {
-  color: #0f172a;
-}
+/* Score column styles moved to .score-cell above */
 
 /* Modal Styles */
 .modal-overlay {
@@ -571,11 +573,6 @@
 }
 
 /* Modal Form Styles */
-.modal-form .form-section {
-  margin-bottom: 1.5rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid #f1f5f9;
-}
 
 .modal-form .form-section:last-child {
   border-bottom: none;
@@ -592,6 +589,10 @@
 
 .form-group {
   margin-bottom: 1rem;
+}
+
+.steps-grid-modal .form-group {
+  margin-bottom: 0;
 }
 
 .form-group label {

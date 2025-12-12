@@ -56,7 +56,7 @@ const CompletionScreen: React.FC<CompletionScreenProps> = ({
           locationCapture: false,
           documentOCR: false,
           secureVerification: false,
-          questionnaire: false,
+          form: false,
         }
       });
     } finally {
@@ -106,7 +106,7 @@ const CompletionScreen: React.FC<CompletionScreenProps> = ({
             {renderCompletedStep(required?.locationCapture ?? false, 'Location Capture')}
             {renderCompletedStep(required?.documentOCR ?? false, 'Document Verification')}
             {renderCompletedStep(required?.secureVerification ?? false, 'Face & Liveness Check')}
-            {renderCompletedStep(required?.questionnaire ?? false, 'Questionnaire')}
+            {renderCompletedStep(required?.form ?? false, 'Form')}
           </div>
         </div>
 

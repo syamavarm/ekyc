@@ -9,7 +9,7 @@ import ConsentScreen from './ConsentScreen';
 import LocationCapture from './LocationCapture';
 import DocumentVerification from './DocumentVerification';
 import FaceVerification from './FaceVerification';
-import QuestionnaireScreen from './QuestionnaireScreen';
+import FormScreen from './FormScreen';
 import CompletionScreen from './CompletionScreen';
 import { initializeAudio, playVoice, isAudioReady } from '../../services/audioService';
 import sessionRecordingService, { SessionRecordingService } from '../../services/sessionRecordingService';
@@ -22,14 +22,14 @@ export type WorkflowStep =
   | 'video_call'
   | 'document'
   | 'face'
-  | 'questionnaire'
+  | 'form'
   | 'completion';
 
 interface WorkflowSteps {
   locationCapture: boolean;
   documentOCR: boolean;
   secureVerification: boolean;
-  questionnaire: boolean;
+  form: boolean;
   locationRadiusKm?: number;
   enableSessionRecording?: boolean;
 }
@@ -43,7 +43,7 @@ interface EKYCWorkflowProps {
   onCancel?: () => void;
   workflowConfigId?: string;
   workflowSteps?: WorkflowSteps;
-  questionnaireFormId?: string;
+  formFieldSetId?: string;
 }
 
 /**
@@ -81,7 +81,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   onCancel,
   workflowConfigId,
   workflowSteps,
-  questionnaireFormId,
+  formFieldSetId,
 }) => {
   const [state, setState] = useState<WorkflowState>({
     sessionId: initialSessionId,
@@ -110,14 +110,14 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     
     if (!workflowSteps) {
       // If no workflow config, return all steps (default flow)
-      return ['consent', 'video_call', 'document', 'location', 'face', 'questionnaire', 'completion'];
+      return ['consent', 'video_call', 'document', 'location', 'face', 'form', 'completion'];
     }
     
     // Secure verification requires document (for face matching)
     const canDoSecureVerification = workflowSteps.secureVerification && workflowSteps.documentOCR;
     
-    // Add video_call if document or secure verification is enabled
-    const needsCamera = workflowSteps.documentOCR || canDoSecureVerification;
+    // Add video_call if any step needs camera (document, secure verification, or form)
+    const needsCamera = workflowSteps.documentOCR || canDoSecureVerification || workflowSteps.form;
     if (needsCamera) {
       steps.push('video_call');
     }
@@ -137,9 +137,9 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       steps.push('face');
     }
     
-    // Add questionnaire if enabled
-    if (workflowSteps.questionnaire) {
-      steps.push('questionnaire');
+    // Add form if enabled
+    if (workflowSteps.form) {
+      steps.push('form');
     }
     
     // Completion is always the final step
@@ -281,12 +281,12 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     uiEventLoggerService.logStepStarted(nextStep);
     
     // Check if any upcoming step (including this one) needs the camera
-    const stepsNeedingCamera: WorkflowStep[] = ['location', 'video_call', 'document', 'face'];
+    const stepsNeedingCamera: WorkflowStep[] = ['location', 'video_call', 'document', 'face', 'form'];
     const currentIndex = enabledSteps.indexOf(nextStep);
     const remainingSteps = enabledSteps.slice(currentIndex);
     const anyCameraStepRemaining = remainingSteps.some(step => stepsNeedingCamera.includes(step));
     
-    // Only stop camera if no remaining steps need it (e.g., moving to completion/questionnaire after face)
+    // Only stop camera if no remaining steps need it (e.g., moving to completion after form)
     if (!anyCameraStepRemaining && localStream) {
       console.log(`[EKYCWorkflow] Stopping camera - no remaining steps need it`);
       stopVideoStream();
@@ -311,7 +311,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       const nextStep = getNextStep('consent');
       moveToNextStep(nextStep);
       // Start video stream if moving to a camera-dependent step
-      const stepsNeedingCamera: WorkflowStep[] = ['location', 'video_call', 'document', 'face'];
+      const stepsNeedingCamera: WorkflowStep[] = ['location', 'video_call', 'document', 'face', 'form'];
       if (stepsNeedingCamera.includes(nextStep) && !localStream) {
         console.log(`[EKYCWorkflow] Starting camera for ${nextStep} step`);
         setTimeout(() => startVideoStream(), 100);
@@ -335,7 +335,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       const nextStep = getNextStep('location');
       moveToNextStep(nextStep);
       // Restart video stream if moving to a camera-dependent step and stream is not active
-      const stepsNeedingCamera: WorkflowStep[] = ['location', 'video_call', 'document', 'face'];
+      const stepsNeedingCamera: WorkflowStep[] = ['location', 'video_call', 'document', 'face', 'form'];
       if (stepsNeedingCamera.includes(nextStep) && !localStream) {
         console.log(`[EKYCWorkflow] Restarting camera for ${nextStep} step`);
         setTimeout(() => startVideoStream(), 100);
@@ -467,13 +467,8 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     moveToNextStep(nextStep);
   };
 
-  const handleQuestionnaireCompleted = () => {
-    uiEventLoggerService.logEvent('questionnaire_completed');
-    moveToNextStep('completion');
-  };
-
-  const handleSkipQuestionnaire = () => {
-    uiEventLoggerService.logEvent('questionnaire_completed', { skipped: true });
+  const handleFormCompleted = () => {
+    uiEventLoggerService.logEvent('form_completed');
     moveToNextStep('completion');
   };
 
@@ -513,8 +508,8 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
           if (nextStepAfterVideo === 'face') {
             return 'Start Face & Liveness Check';
           }
-          if (nextStepAfterVideo === 'questionnaire') {
-            return 'Start Questionnaire';
+          if (nextStepAfterVideo === 'form') {
+            return 'Start Form';
           }
           return 'Continue';
         };
@@ -589,15 +584,14 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
           />
         );
 
-      case 'questionnaire':
+      case 'form':
         return (
-          <QuestionnaireScreen
+          <FormScreen
             sessionId={state.sessionId}
-            ocrData={state.essentialOcrData}
-            onCompleted={handleQuestionnaireCompleted}
-            onSkip={handleSkipQuestionnaire}
+            onCompleted={handleFormCompleted}
             loading={loading}
-            questionSet={questionnaireFormId || 'basic'}
+            fieldSet={formFieldSetId || 'account_opening'}
+            onStepInstruction={updateStepInstruction}
           />
         );
 
@@ -621,7 +615,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       'video_call': 'Camera',
       'document': 'Document',
       'face': 'Face & Liveness',
-      'questionnaire': 'Questions',
+      'form': 'Form',
       'completion': 'Complete',
     };
     return labels[step] || step.replace('_', ' ');
@@ -635,14 +629,14 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       'video_call': 'Ensure you can see yourself clearly and your face is well lit.',
       'document': 'Hold your document within the frame',
       'face': 'Follow the on-screen instructions',
-      'questionnaire': 'Answer the verification questions',
+      'form': 'Answer the form fields',
       'completion': 'Verification complete',
     };
     return instructions[state.currentStep] || '';
   };
 
   // Check if current step uses video
-  const isVideoStep = ['video_call', 'face', 'location', 'document'].includes(state.currentStep);
+  const isVideoStep = ['video_call', 'face', 'location', 'document', 'form'].includes(state.currentStep);
   const isDocumentStep = state.currentStep === 'document';
   const isConsentStep = state.currentStep === 'consent';
   const isCompletionStep = state.currentStep === 'completion';

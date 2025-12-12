@@ -36,10 +36,10 @@ export type UIEventType =
   | 'location_capture_started'
   | 'location_check_started'
   | 'location_check_display'
-  // Questionnaire events
-  | 'questionnaire_started'
-  | 'questionnaire_answer_submitted'
-  | 'questionnaire_completed'
+  // Form events
+  | 'form_started'
+  | 'form_answer_submitted'
+  | 'form_completed'
   // Error & warning events
   | 'error_displayed'
   | 'warning_displayed'

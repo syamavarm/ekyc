@@ -358,20 +358,20 @@ router.get('/:sessionId/details', async (req: Request, res: Response) => {
     
     console.log(`[SessionRecording] Found ${documents.length} documents for session ${sessionId}`);
     
-    // Find report for this session
+    // Find text report for this session (kyc_report_*.txt)
     if (fs.existsSync(reportsDir)) {
       const files = fs.readdirSync(reportsDir);
-      const reportFile = files.find(f => f.includes(sessionId));
+      // Look specifically for the .txt report file (not the formdata JSON)
+      const reportFile = files.find(f => 
+        f.startsWith('kyc_report_') && 
+        f.includes(sessionId) && 
+        f.endsWith('.txt')
+      );
       
       if (reportFile) {
         try {
           const reportContent = fs.readFileSync(path.join(reportsDir, reportFile), 'utf-8');
-          // Try to parse as JSON, otherwise treat as text
-          try {
-            reportData = JSON.parse(reportContent);
-          } catch {
-            reportData = { type: 'text', content: reportContent };
-          }
+          reportData = { type: 'text', content: reportContent };
         } catch (e) {
           console.error(`[SessionRecording] Failed to read report: ${reportFile}`, e);
         }
@@ -414,7 +414,7 @@ router.get('/:sessionId/details', async (req: Request, res: Response) => {
             faceConsistency: session.secureVerification.faceConsistency,
             verifiedAt: session.secureVerification.verifiedAt,
           } : null,
-          questionnaire: session.questionnaire,
+          form: session.form,
           verificationResults: session.verificationResults,
           overallScore: session.overallScore,
         };
@@ -444,6 +444,15 @@ router.get('/:sessionId/details', async (req: Request, res: Response) => {
       console.log(`[SessionRecording] Could not get session from manager: ${e}`);
     }
     
+    // Load form data (OCR + Form) if available
+    let formData = null;
+    try {
+      const { reportService } = await import('./kycRoutes');
+      formData = reportService.loadFormData(sessionId);
+    } catch (e) {
+      console.log(`[SessionRecording] Could not load form data: ${e}`);
+    }
+    
     res.status(200).json({
       success: true,
       sessionId,
@@ -451,6 +460,7 @@ router.get('/:sessionId/details', async (req: Request, res: Response) => {
       documents,
       ocrResults,
       reportData,
+      formData,
     });
   } catch (error: any) {
     console.error('[SessionRecording] Error getting session details:', error);

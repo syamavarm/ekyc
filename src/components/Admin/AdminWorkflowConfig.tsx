@@ -6,16 +6,16 @@ interface WorkflowSteps {
   locationCapture: boolean;
   documentOCR: boolean;
   secureVerification: boolean;
-  questionnaire: boolean;
+  form: boolean;
   locationRadiusKm?: number;
   enableSessionRecording?: boolean;
 }
 
-interface QuestionSet {
+interface FieldSet {
   id: string;
   name: string;
   description: string;
-  questionCount: number;
+  fieldCount: number;
 }
 
 interface WorkflowConfiguration {
@@ -43,7 +43,7 @@ interface VerificationResults {
   documentVerified: boolean;
   secureVerified: boolean;
   locationVerified: boolean;
-  questionnaireVerified?: boolean;
+  formVerified?: boolean;
   overallVerified: boolean;
 }
 
@@ -56,6 +56,12 @@ interface KYCSession {
   createdAt: string;
   completedAt?: string;
   workflowConfigId?: string;
+  workflowSteps?: {
+    locationCapture?: boolean;
+    documentOCR?: boolean;
+    secureVerification?: boolean;
+    form?: boolean;
+  };
   document?: {
     documentType: string;
     ocrResults?: OCRResults;
@@ -100,14 +106,14 @@ const AdminWorkflowConfig: React.FC = () => {
     locationCapture: true,
     documentOCR: true,
     secureVerification: true,
-    questionnaire: true,
+    form: true,
     locationRadiusKm: undefined,
     enableSessionRecording: true, // Default enabled for video-KYC
   });
   const [selectedForm, setSelectedForm] = useState<string>('');
   
   // Data state
-  const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
+  const [fieldSets, setFieldSets] = useState<FieldSet[]>([]);
   const [existingConfigs, setExistingConfigs] = useState<WorkflowConfiguration[]>([]);
   const [sessions, setSessions] = useState<KYCSession[]>([]);
   
@@ -120,21 +126,23 @@ const AdminWorkflowConfig: React.FC = () => {
 
   // Fetch data on mount
   useEffect(() => {
-    fetchQuestionSets();
+    fetchFieldSets();
     fetchExistingConfigs();
     fetchSessions();
   }, []);
 
-  const fetchQuestionSets = async () => {
+  const fetchFieldSets = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/kyc/questionnaire/sets`);
+      const response = await fetch(`${API_BASE_URL}/kyc/form/sets`);
       const data = await response.json();
       
-      if (data.success && data.questionSets) {
-        setQuestionSets(data.questionSets);
-        const basicSet = data.questionSets.find((qs: QuestionSet) => qs.id === 'basic');
-        if (basicSet) {
-          setSelectedForm(basicSet.id);
+      if (data.success && data.fieldSets) {
+        setFieldSets(data.fieldSets);
+        // Default to account_opening for new workflows
+        const defaultSet = data.fieldSets.find((fs: FieldSet) => fs.id === 'account_opening') 
+          || data.fieldSets[0];
+        if (defaultSet) {
+          setSelectedForm(defaultSet.id);
         }
       }
     } catch (err) {
@@ -181,13 +189,13 @@ const AdminWorkflowConfig: React.FC = () => {
       locationCapture: true,
       documentOCR: true,
       secureVerification: true,
-      questionnaire: true,
+      form: true,
       locationRadiusKm: undefined,
       enableSessionRecording: true,
     });
-    setSelectedForm(questionSets.find(qs => qs.id === 'basic')?.id || '');
+    setSelectedForm(fieldSets.find(fs => fs.id === 'account_opening')?.id || fieldSets[0]?.id || '');
     setEditingConfig(null);
-  }, [questionSets]);
+  }, [fieldSets]);
 
   const openCreateModal = () => {
     resetModalForm();
@@ -245,7 +253,7 @@ const AdminWorkflowConfig: React.FC = () => {
           body: JSON.stringify({
             name: workflowName,
             steps,
-            formId: steps.questionnaire ? selectedForm : undefined,
+            formId: steps.form ? selectedForm : undefined,
           }),
         });
 
@@ -268,7 +276,7 @@ const AdminWorkflowConfig: React.FC = () => {
           body: JSON.stringify({
             name: workflowName,
             steps,
-            formId: steps.questionnaire ? selectedForm : undefined,
+            formId: steps.form ? selectedForm : undefined,
             createdBy: 'admin',
           }),
         });
@@ -497,17 +505,36 @@ const AdminWorkflowConfig: React.FC = () => {
           <div className="step-item">
             <div className="step-info-compact">
               <span className="step-icon-small">❓</span>
-              <span>Questionnaire</span>
+              <span>Form</span>
             </div>
             <label className="toggle-switch">
               <input
                 type="checkbox"
-                checked={steps.questionnaire}
-                onChange={() => handleStepToggle('questionnaire')}
+                checked={steps.form}
+                onChange={() => handleStepToggle('form')}
               />
               <span className="toggle-slider"></span>
             </label>
           </div>
+
+          {steps.form && (
+          <div className="form-section">
+            <div className="form-group">
+              <select
+                value={selectedForm}
+                onChange={(e) => setSelectedForm(e.target.value)}
+                className="form-select"
+              >
+                <option value="">Select a field set...</option>
+                {fieldSets.map((fs) => (
+                  <option key={fs.id} value={fs.id}>
+                    {fs.name} ({fs.fieldCount} fields)
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
 
           <div className="step-item">
             <div className="step-info-compact">
@@ -529,25 +556,6 @@ const AdminWorkflowConfig: React.FC = () => {
         </div>
       </div>
 
-      {steps.questionnaire && (
-        <div className="form-section">
-          <h3>Question Set</h3>
-          <div className="form-group">
-            <select
-              value={selectedForm}
-              onChange={(e) => setSelectedForm(e.target.value)}
-              className="form-select"
-            >
-              <option value="">Select a question set...</option>
-              {questionSets.map((qs) => (
-                <option key={qs.id} value={qs.id}>
-                  {qs.name} ({qs.questionCount} questions)
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
 
       {error && (
         <div className="alert alert-error">
@@ -604,7 +612,7 @@ const AdminWorkflowConfig: React.FC = () => {
                       {config.steps.documentOCR && <span className="step-badge">OCR</span>}
                       {config.steps.locationCapture && <span className="step-badge">Location</span>}
                       {config.steps.secureVerification && <span className="step-badge">Face+Live</span>}
-                      {config.steps.questionnaire && <span className="step-badge">Quiz</span>}
+                      {config.steps.form && <span className="step-badge">Form</span>}
                     </div>
                   </td>
                   <td>
@@ -670,7 +678,8 @@ const AdminWorkflowConfig: React.FC = () => {
               <th>Session ID</th>
               <th>Mobile Number</th>
               <th>OCR Details</th>
-              <th>Checks & Scores</th>
+              <th>Checks</th>
+              <th>Score</th>
               <th>Status</th>
               <th>Created</th>
               <th>Actions</th>
@@ -679,7 +688,7 @@ const AdminWorkflowConfig: React.FC = () => {
           <tbody>
             {sessions.length === 0 ? (
               <tr>
-                <td colSpan={7} className="empty-row">
+                <td colSpan={8} className="empty-row">
                   No sessions found.
                 </td>
               </tr>
@@ -735,52 +744,60 @@ const AdminWorkflowConfig: React.FC = () => {
                   </td>
                   <td className="checks-cell">
                     <div className="checks-grid">
-                      <div className={`check-item ${session.verificationResults.documentVerified ? 'passed' : 'failed'}`}>
-                        <span className="check-icon">{session.verificationResults.documentVerified ? '✓' : '✗'}</span>
-                        <span>Document</span>
-                      </div>
-                      {/* Face Match */}
-                      {session.secureVerification && (
-                        <div className={`check-item ${session.secureVerification.faceMatch.isMatch ? 'passed' : 'failed'}`}>
-                          <span className="check-icon">
-                            {session.secureVerification.faceMatch.isMatch ? '✓' : '✗'}
-                          </span>
-                          <span>Face Match ({(session.secureVerification.faceMatch.matchScore * 100).toFixed(0)}%)</span>
+                      {/* Document - only show if enabled in workflow */}
+                      {(session.workflowSteps?.documentOCR !== false) && session.workflowSteps?.documentOCR && (
+                        <div className={`check-item ${session.verificationResults.documentVerified ? 'passed' : 'failed'}`}>
+                          <span className="check-icon">{session.verificationResults.documentVerified ? '✓' : '✗'}</span>
+                          <span>Document</span>
                         </div>
                       )}
-                      {/* Liveness */}
-                      {session.secureVerification && (
-                        <div className={`check-item ${session.secureVerification.liveness.overallResult ? 'passed' : 'failed'}`}>
-                          <span className="check-icon">
-                            {session.secureVerification.liveness.overallResult ? '✓' : '✗'}
-                          </span>
-                          <span>Liveness ({(session.secureVerification.liveness.confidenceScore * 100).toFixed(0)}%)</span>
+                      {/* Face+Liveness - only show if enabled in workflow */}
+                      {session.workflowSteps?.secureVerification && (
+                        <>
+                          {session.secureVerification ? (
+                            <>
+                              <div className={`check-item ${session.secureVerification.faceMatch.isMatch ? 'passed' : 'failed'}`}>
+                                <span className="check-icon">
+                                  {session.secureVerification.faceMatch.isMatch ? '✓' : '✗'}
+                                </span>
+                                <span>Face ({(session.secureVerification.faceMatch.matchScore * 100).toFixed(0)}%)</span>
+                              </div>
+                              <div className={`check-item ${session.secureVerification.liveness.overallResult ? 'passed' : 'failed'}`}>
+                                <span className="check-icon">
+                                  {session.secureVerification.liveness.overallResult ? '✓' : '✗'}
+                                </span>
+                                <span>Liveness ({(session.secureVerification.liveness.confidenceScore * 100).toFixed(0)}%)</span>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="check-item failed">
+                              <span className="check-icon">✗</span>
+                              <span>Face+Live</span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {/* Location - only show if enabled in workflow */}
+                      {session.workflowSteps?.locationCapture && (
+                        <div className={`check-item ${session.verificationResults.locationVerified ? 'passed' : 'failed'}`}>
+                          <span className="check-icon">{session.verificationResults.locationVerified ? '✓' : '✗'}</span>
+                          <span>Location</span>
                         </div>
                       )}
-                      {/* Face Consistency */}
-                      {session.secureVerification && (
-                        <div className={`check-item ${session.secureVerification.faceConsistency.isConsistent ? 'passed' : 'failed'}`}>
-                          <span className="check-icon">
-                            {session.secureVerification.faceConsistency.isConsistent ? '✓' : '✗'}
-                          </span>
-                          <span>Consistency ({(session.secureVerification.faceConsistency.consistencyScore * 100).toFixed(0)}%)</span>
-                        </div>
-                      )}
-                      <div className={`check-item ${session.verificationResults.locationVerified ? 'passed' : 'failed'}`}>
-                        <span className="check-icon">{session.verificationResults.locationVerified ? '✓' : '✗'}</span>
-                        <span>Location</span>
-                      </div>
-                      {session.verificationResults.questionnaireVerified !== undefined && (
-                        <div className={`check-item ${session.verificationResults.questionnaireVerified ? 'passed' : 'failed'}`}>
-                          <span className="check-icon">{session.verificationResults.questionnaireVerified ? '✓' : '✗'}</span>
-                          <span>Quiz</span>
+                      {/* Form - only show if enabled in workflow */}
+                      {session.workflowSteps?.form && (
+                        <div className={`check-item ${session.verificationResults.formVerified ? 'passed' : 'failed'}`}>
+                          <span className="check-icon">{session.verificationResults.formVerified ? '✓' : '✗'}</span>
+                          <span>Form</span>
                         </div>
                       )}
                     </div>
-                    {session.overallScore !== undefined && (
-                      <div className="overall-score">
-                        Overall: <strong>{(session.overallScore * 100).toFixed(0)}%</strong>
-                      </div>
+                  </td>
+                  <td className="score-cell">
+                    {session.overallScore !== undefined ? (
+                      <span className="score-value">{(session.overallScore * 100).toFixed(0)}%</span>
+                    ) : (
+                      <span className="muted">—</span>
                     )}
                   </td>
                   <td>

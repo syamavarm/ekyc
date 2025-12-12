@@ -38,7 +38,7 @@ export class ReportGenerationService {
       location: session.location,
       document: session.document,
       secureVerification: session.secureVerification,
-      questionnaire: session.questionnaire,
+      form: session.form,
       verificationResults: session.verificationResults,
       overallScore: session.overallScore,
     };
@@ -262,18 +262,18 @@ export class ReportGenerationService {
       lines.push('');
     }
     
-    // Questionnaire
-    if (session.questionnaire) {
-      lines.push('QUESTIONNAIRE');
+    // Form Fields
+    if (session.form) {
+      lines.push('FORM');
       lines.push('-'.repeat(80));
-      lines.push(`Score: ${session.questionnaire.score}/${session.questionnaire.questions.length}`);
-      lines.push(`Passed: ${session.questionnaire.passed ? 'YES' : 'NO'}`);
+      lines.push(`Score: ${session.form.score}/${session.form.fields.length}`);
+      lines.push(`Passed: ${session.form.passed ? 'YES' : 'NO'}`);
       lines.push('');
-      lines.push('Questions & Answers:');
-      session.questionnaire.questions.forEach((qa, index) => {
-        lines.push(`  ${index + 1}. ${qa.question}`);
-        lines.push(`     Answer: ${qa.userAnswer}`);
-        lines.push(`     Result: ${qa.isCorrect ? 'CORRECT' : 'INCORRECT'}`);
+      lines.push('Form Fields & Values:');
+      session.form.fields.forEach((fa: any, index: number) => {
+        lines.push(`  ${index + 1}. ${fa.field}`);
+        lines.push(`     Answer: ${fa.userAnswer}`);
+        lines.push(`     Result: ${fa.isCorrect ? 'CORRECT' : 'INCORRECT'}`);
       });
       lines.push('');
     }
@@ -282,10 +282,10 @@ export class ReportGenerationService {
     lines.push('VERIFICATION RESULTS SUMMARY');
     lines.push('-'.repeat(80));
     lines.push(`Document Verified: ${session.verificationResults.documentVerified ? 'YES' : 'NO'}`);
-    lines.push(`Secure Verification: ${session.verificationResults.secureVerificationVerified ? 'YES' : 'NO'}`);
+    lines.push(`Secure Verification: ${session.verificationResults.secureVerified ? 'YES' : 'NO'}`);
     lines.push(`Location Verified: ${session.verificationResults.locationVerified ? 'YES' : 'NO'}`);
-    if (session.verificationResults.questionnaireVerified !== undefined) {
-      lines.push(`Questionnaire Verified: ${session.verificationResults.questionnaireVerified ? 'YES' : 'NO'}`);
+    if (session.verificationResults.formVerified !== undefined) {
+      lines.push(`Form Verified: ${session.verificationResults.formVerified ? 'YES' : 'NO'}`);
     }
     lines.push('');
     lines.push(`OVERALL STATUS: ${session.verificationResults.overallVerified ? 'VERIFIED' : 'NOT VERIFIED'}`);
@@ -306,6 +306,85 @@ export class ReportGenerationService {
    */
   generateJSONExport(session: KYCSession): string {
     return JSON.stringify(session, null, 2);
+  }
+
+  /**
+   * Generate form data JSON (OCR + Form fields)
+   * Creates a flat JSON with OCR fields and form field values
+   */
+  generateFormDataJSON(session: KYCSession): {
+    filepath: string;
+    data: any;
+  } {
+    const formData: any = {};
+
+    // Extract OCR data directly at root level
+    if (session.document?.ocrResults?.extractedData) {
+      const ocr = session.document.ocrResults.extractedData;
+      
+      if (ocr.fullName) formData.fullName = ocr.fullName;
+      if (ocr.firstName) formData.firstName = ocr.firstName;
+      if (ocr.lastName) formData.lastName = ocr.lastName;
+      if (ocr.dateOfBirth) formData.dateOfBirth = ocr.dateOfBirth;
+      if (ocr.gender) formData.gender = ocr.gender;
+      if (ocr.nationality) formData.nationality = ocr.nationality;
+      if (ocr.address) formData.address = ocr.address;
+      if (session.document.documentType) formData.documentType = session.document.documentType;
+      if (ocr.documentNumber) formData.documentNumber = ocr.documentNumber;
+      if (ocr.issueDate) formData.issueDate = ocr.issueDate;
+      if (ocr.expiryDate) formData.expiryDate = ocr.expiryDate;
+      if (ocr.placeOfBirth) formData.placeOfBirth = ocr.placeOfBirth;
+    }
+
+    // Extract form field responses as flat key-value pairs
+    if (session.form?.fields) {
+      session.form.fields.forEach((field: any) => {
+        // Use the fieldId directly as the key
+        if (field.fieldId) {
+          formData[field.fieldId] = field.userAnswer;
+        }
+      });
+    }
+
+    // Save to file
+    const filename = `formdata_${session.sessionId}.json`;
+    const filepath = path.join(this.reportsDir, filename);
+    
+    fs.writeFileSync(filepath, JSON.stringify(formData, null, 2));
+    console.log(`[ReportService] Form data JSON saved: ${filepath}`);
+
+    return {
+      filepath,
+      data: formData,
+    };
+  }
+
+  /**
+   * Get form data JSON path for a session
+   */
+  getFormDataPath(sessionId: string): string | null {
+    const filename = `formdata_${sessionId}.json`;
+    const filepath = path.join(this.reportsDir, filename);
+    
+    if (fs.existsSync(filepath)) {
+      return filepath;
+    }
+    
+    return null;
+  }
+
+  /**
+   * Load form data JSON for a session
+   */
+  loadFormData(sessionId: string): any | null {
+    const filepath = this.getFormDataPath(sessionId);
+    
+    if (filepath) {
+      const content = fs.readFileSync(filepath, 'utf-8');
+      return JSON.parse(content);
+    }
+    
+    return null;
   }
 
   /**

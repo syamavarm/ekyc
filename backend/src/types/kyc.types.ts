@@ -30,8 +30,8 @@ export interface KYCSession {
   // Stores detailed results for audit/reporting
   secureVerification?: SecureVerificationData;
   
-  // Questionnaire (optional)
-  questionnaire?: QuestionnaireData;
+  // Form fields (optional)
+  form?: FormData;
   
   // Video recording
   videoRecording?: VideoRecordingData;
@@ -50,8 +50,8 @@ export type KYCStatus =
   | 'document_verified'
   | 'secure_verification_pending'
   | 'secure_verified'
-  | 'questionnaire_pending'
-  | 'questionnaire_completed'
+  | 'form_pending'
+  | 'form_completed'
   | 'completed'
   | 'failed'
   | 'expired';
@@ -229,20 +229,25 @@ export type LivenessCheckType =
   | 'smile_detection'
   | 'passive_liveness';
 
-export interface QuestionnaireData {
-  questions: QuestionAnswer[];
+export interface FormData {
+  fields: FormFieldAnswer[];
   score: number;
   passed: boolean;
   completedAt: Date;
 }
 
-export interface QuestionAnswer {
-  question: string;
+export interface FormFieldAnswer {
+  fieldId: string;
+  field: string;
   expectedAnswer?: string;
   userAnswer: string;
   isCorrect: boolean;
   answeredAt: Date;
 }
+
+// Legacy aliases for backward compatibility
+export type QuestionnaireData = FormData;
+export type QuestionAnswer = FormFieldAnswer;
 
 export interface VideoRecordingData {
   videoUrl?: string;
@@ -259,7 +264,7 @@ export interface VerificationResults {
    */
   secureVerified: boolean;
   locationVerified: boolean;
-  questionnaireVerified?: boolean;
+  formVerified?: boolean;
   overallVerified: boolean;
 }
 
@@ -415,7 +420,7 @@ export interface SessionSummaryResponse {
   location?: LocationData;
   document?: DocumentData;
   secureVerification?: SecureVerificationData;
-  questionnaire?: QuestionnaireData;
+  form?: FormData;
   verificationResults: VerificationResults;
   overallScore?: number;
 }
@@ -451,7 +456,7 @@ export interface WorkflowSteps {
    * Requires documentOCR to be enabled.
    */
   secureVerification: boolean;
-  questionnaire: boolean;
+  form: boolean;
   // Location verification radius in kilometers (compare user's GPS with document address)
   locationRadiusKm?: number;
   /**

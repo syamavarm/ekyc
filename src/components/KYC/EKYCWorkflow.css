@@ -1173,7 +1173,7 @@
 .ekyc-light .document-actions,
 .ekyc-light .location-actions,
 .ekyc-light .face-actions,
-.ekyc-light .questionnaire-actions,
+.ekyc-light .form-actions,
 .ekyc-light .completion-actions {
   display: flex;
   gap: 12px;
@@ -1340,71 +1340,10 @@
   justify-content: flex-end;
 }
 
-/* Questionnaire screen within light theme */
-.ekyc-light .questionnaire-screen {
-  display: block;
-  min-height: auto;
-}
+/* Form screen styles moved to form-specific section below */
 
-.ekyc-light .questionnaire-card {
-  background: transparent;
-  box-shadow: none;
-  padding: 0;
-  max-width: none;
-}
-
-.ekyc-light .questionnaire-card h2 {
-  font-size: 1.25rem;
-  color: #1F2937;
-  margin-bottom: 16px;
-}
-
-.ekyc-light .progress-bar {
-  height: 6px;
-  background: #E5E5E5;
-  border-radius: 3px;
-  margin: 16px 0 8px;
-}
-
-.ekyc-light .progress-fill {
-  height: 100%;
-  background: #3B82F6;
-  border-radius: 3px;
-  transition: width 0.3s ease;
-}
-
-.ekyc-light .progress-text {
-  text-align: center;
-  color: #6B7280;
-  font-size: 12px;
-  margin-bottom: 24px;
-}
-
-.ekyc-light .question-container {
-  margin: 24px 0;
-  min-height: 160px;
-}
-
-.ekyc-light .question-text {
-  color: #1F2937;
-  font-size: 1.1rem;
-  margin-bottom: 20px;
-  font-weight: 500;
-}
-
-.ekyc-light .question-input,
-.ekyc-light .question-select {
-  width: 100%;
-  padding: 12px 16px;
-  font-size: 14px;
-  border: 1px solid #D4D4D4;
-  border-radius: 8px;
-  transition: border-color 0.2s;
-  background: #FFFFFF;
-}
-
-.ekyc-light .question-input:focus,
-.ekyc-light .question-select:focus {
+.ekyc-light .field-input:focus,
+.ekyc-light .field-select:focus {
   outline: none;
   border-color: #3B82F6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
@@ -1436,6 +1375,185 @@
   border-color: #3B82F6;
   background: #3B82F6;
   color: white;
+}
+
+/* Form screen - minimal style like document/location */
+.form-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.form-card-minimal {
+  background: rgba(255, 255, 255, 0.97);
+  border-radius: 12px;
+  padding: 16px 20px;
+  max-width: 320px;
+  width: 100%;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.form-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.form-progress .progress-bar {
+  flex: 1;
+  height: 4px;
+  background: #E5E7EB;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.form-progress .progress-fill {
+  height: 100%;
+  background: #3B82F6;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.form-progress .progress-text {
+  font-size: 12px;
+  color: #6B7280;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.form-card-minimal .field-container {
+  margin: 0;
+}
+
+.form-card-minimal .field-container .field-text {
+  font-size: 14px;
+  color: #1F2937;
+  margin-bottom: 12px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+/* Question input styles */
+.field-input {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 14px;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  background: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Multiple choice options - vertical stack */
+.field-options,
+.form-field-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.option-btn {
+  padding: 10px 14px;
+  font-size: 13px;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  background: #FAFAFA;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  color: #374151;
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  line-height: 1.3;
+}
+
+.option-btn:hover {
+  border-color: #3B82F6;
+  background: #EFF6FF;
+}
+
+.option-btn.selected {
+  border-color: #3B82F6;
+  background: #3B82F6;
+  color: white;
+  font-weight: 500;
+}
+
+/* Yes/No buttons */
+.yes-no-buttons {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.yes-no-btn {
+  flex: 1;
+  padding: 10px 16px;
+  font-size: 13px;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.yes-no-btn:hover {
+  border-color: #3B82F6;
+  background: #EFF6FF;
+}
+
+.yes-no-btn.selected {
+  border-color: #3B82F6;
+  background: #3B82F6;
+  color: white;
+}
+
+/* Form actions - standalone like document */
+.form-actions-standalone {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+/* Form status - standalone like location */
+.form-status-standalone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.form-status-standalone.success {
+  color: #10B981;
+  font-weight: 500;
+}
+
+.form-status-standalone.success p {
+  font-size: 16px;
+}
+
+/* Form error */
+.form-error {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: #DC2626;
+  font-size: 14px;
+  text-align: center;
 }
 
 /* Completion screen within light theme */
@@ -1547,7 +1665,6 @@
 
 /* Common Card Styles */
 .consent-screen,
-.questionnaire-screen,
 .completion-screen {
   display: flex;
   justify-content: center;
@@ -1566,7 +1683,7 @@
 .location-card,
 .document-card,
 .face-card,
-.questionnaire-card,
+.form-card,
 .completion-card {
   background: white;
   border-radius: 20px;
@@ -1580,7 +1697,7 @@
 .location-card h2,
 .document-card h2,
 .face-card h2,
-.questionnaire-card h2,
+.form-card h2,
 .completion-card h2 {
   color: #333;
   margin-bottom: 15px;
@@ -1838,7 +1955,7 @@
 
 .location-actions,
 .document-actions,
-.questionnaire-actions,
+.form-actions,
 .completion-actions {
   display: flex;
   gap: 15px;
@@ -2602,7 +2719,7 @@
   margin-right: 5px;
 }
 
-/* Questionnaire */
+/* Form */
 .progress-bar {
   width: 100%;
   height: 8px;
@@ -2625,19 +2742,19 @@
   margin-bottom: 30px;
 }
 
-.question-container {
+.field-container {
   margin: 30px 0;
   min-height: 200px;
 }
 
-.question-text {
+.field-text {
   color: #333;
   font-size: 1.3rem;
   margin-bottom: 25px;
 }
 
-.question-input,
-.question-select {
+.field-input,
+.field-select {
   width: 100%;
   padding: 15px;
   font-size: 1.1rem;
@@ -2646,8 +2763,8 @@
   transition: border-color 0.3s;
 }
 
-.question-input:focus,
-.question-select:focus {
+.field-input:focus,
+.field-select:focus {
   outline: none;
   border-color: #667eea;
 }
@@ -2954,7 +3071,7 @@
   .location-card,
   .document-card,
   .face-card,
-  .questionnaire-card,
+  .form-card,
   .completion-card {
     padding: 30px 20px;
   }
