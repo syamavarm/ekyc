@@ -8,14 +8,25 @@ import {
 } from '../../services/audioService';
 import { uiEventLoggerService } from '../../services/uiEventLoggerService';
 
+// Visual feedback state - simplified to single mode to prevent flickers
+export type VisualMode = 'idle' | 'countdown' | 'action' | 'recording';
+
+export interface VisualFeedbackState {
+  mode: VisualMode;
+  countdownNumber: number | null;
+}
+
 interface FaceVerificationProps {
   sessionId: string;
   documentId: string;
-  videoStream: MediaStream | null;
   onVerified: () => void;
   onComplete: () => void;
   loading: boolean;
   onStepInstruction?: (instruction: string, playAudio?: boolean, waitForAudio?: boolean) => Promise<void>;
+  // Callback to send visual feedback state to parent for rendering on main video
+  onVisualFeedbackChange?: (state: VisualFeedbackState) => void;
+  // Reference to main video element for frame capture (parent owns the only <video>)
+  mainVideoRef: React.RefObject<HTMLVideoElement>;
 }
 
 type VerificationStatus = 
@@ -41,13 +52,13 @@ type VerificationStatus =
 const FaceVerification: React.FC<FaceVerificationProps> = ({
   sessionId,
   documentId,
-  videoStream,
   onVerified,
   onComplete,
   loading,
   onStepInstruction,
+  onVisualFeedbackChange,
+  mainVideoRef,
 }) => {
-  const localVideoRef = useRef<HTMLVideoElement>(null);
   
   // State
   const [status, setStatus] = useState<VerificationStatus>('idle');
@@ -58,16 +69,17 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
   // Intro audio state
   const [introAudioPlayed, setIntroAudioPlayed] = useState(false);
   const introAudioStartedRef = useRef(false);
-
-  // Assign stream to video element
+  
+  // Visual feedback state - single source of truth to prevent flickers
+  const [visualMode, setVisualMode] = useState<VisualMode>('idle');
+  const [countdownNumber, setCountdownNumber] = useState<number | null>(null);
+  
+  // Notify parent of visual feedback changes - batched updates
   useEffect(() => {
-    if (localVideoRef.current && videoStream) {
-      localVideoRef.current.srcObject = videoStream;
-      localVideoRef.current.play().catch(err => {
-        console.log('Video autoplay:', err);
-      });
+    if (onVisualFeedbackChange) {
+      onVisualFeedbackChange({ mode: visualMode, countdownNumber });
     }
-  }, [videoStream, status]);
+  }, [visualMode, countdownNumber, onVisualFeedbackChange]);
 
   // Play intro instruction when component mounts
   useEffect(() => {
@@ -79,7 +91,7 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
       await new Promise(resolve => setTimeout(resolve, 300));
       
       if (onStepInstruction) {
-        await onStepInstruction('Please be prepared to follow instructions to verify your identity.');
+        await onStepInstruction('Please be prepared to follow instructions to verify your presence.');
       }
       
       setIntroAudioPlayed(true);
@@ -96,18 +108,18 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
   }, []);
 
   /**
-   * Capture a single frame from the video
+   * Capture a single frame from the main video element (owned by parent)
    */
   const captureFrame = async (): Promise<Blob | null> => {
-    if (!localVideoRef.current) return null;
+    if (!mainVideoRef.current) return null;
 
     const canvas = document.createElement('canvas');
-    canvas.width = localVideoRef.current.videoWidth;
-    canvas.height = localVideoRef.current.videoHeight;
+    canvas.width = mainVideoRef.current.videoWidth;
+    canvas.height = mainVideoRef.current.videoHeight;
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
-    ctx.drawImage(localVideoRef.current, 0, 0);
+    ctx.drawImage(mainVideoRef.current, 0, 0);
 
     return new Promise<Blob | null>((resolve) => {
       canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.95);
@@ -137,6 +149,37 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
   };
 
   /**
+   * Visual countdown (3-2-1) as fallback/supplement to audio beep
+   * Shows large numbers on screen before action starts
+   */
+  const showVisualCountdown = async (): Promise<void> => {
+    setVisualMode('countdown');
+    for (let i = 3; i >= 1; i--) {
+      setCountdownNumber(i);
+      await new Promise(resolve => setTimeout(resolve, 600));
+    }
+    setCountdownNumber(null);
+  };
+
+  /**
+   * Signal "GO!" with green pulsing border, then transition to recording
+   */
+  const triggerActionCue = async (): Promise<void> => {
+    // Green pulse for "GO!"
+    setVisualMode('action');
+    await new Promise(resolve => setTimeout(resolve, 400));
+    // Transition to recording mode
+    setVisualMode('recording');
+  };
+
+  /**
+   * End the recording visual indicator
+   */
+  const endRecordingIndicator = (): void => {
+    setVisualMode('idle');
+  };
+
+  /**
    * Start the secure verification process
    */
   const startVerification = async () => {
@@ -153,21 +196,32 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
     
     // Step 0: Get Ready phase
     setStatus('get_ready');
-    await showInstruction('Position your face in the center of the frame', 'prepare', true);
+    await showInstruction('Please perform the actions as instructed, after the countdown and beep', 'prepare', true);
     
     // Give user additional time to position themselves
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     // Instruction before face capture
-    await showInstruction('Look straight at the camera, after the beep.', 'prepare');
+    await showInstruction('Look straight at the camera.', 'prepare');
     
-    // Step 1: Capture initial face image
+    // Step 1: Capture initial face image with countdown
     setStatus('capturing_face');
     uiEventLoggerService.logEvent('face_capture_started', {});
-    await playBeep('action'); // Sharp beep for capture
-    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Visual countdown (3-2-1) before capture
+    await showVisualCountdown();
+    
+    // BEEP + Green pulse to signal capture
+    playBeep('action').catch(() => {
+      console.warn('[FaceVerification] Audio beep failed for face capture');
+    });
+    await triggerActionCue();
     
     const faceImage = await captureFrame();
+    
+    // End visual feedback
+    endRecordingIndicator();
+    
     if (!faceImage) {
       setError('Failed to capture face image');
       setStatus('failed');
@@ -190,6 +244,7 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
 
   /**
    * Perform liveness actions and capture frames
+   * Includes visual countdown (3-2-1) and flash effect as fallback/supplement to audio
    */
   const performLivenessActions = async (): Promise<Blob[]> => {
     const instructions = [
@@ -219,19 +274,25 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
       });
       
       // Show instruction and speak it
-      const prepareText = `${instruction.text}, after the beep`;
+      const prepareText = `${instruction.text}`;
       setCurrentInstruction(prepareText);
       
       if (onStepInstruction) {
         await onStepInstruction(prepareText);
       } else {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
       }
       
-      // Action beep immediately after instruction
-      await playBeep('action');
+      // Visual countdown (3-2-1) - works even if audio fails
+      await showVisualCountdown();
       
-      // Action NOW
+      // BEEP + Green pulse together at the end of countdown to signal "GO!"
+      playBeep('action').catch(() => {
+        console.warn('[FaceVerification] Audio beep failed, visual pulse still active');
+      });
+      await triggerActionCue();
+      
+      // Action NOW - show in instruction
       const actionText = `${instruction.text} - NOW!`;
       setCurrentInstruction(actionText);
       if (onStepInstruction) {
@@ -239,7 +300,7 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
       }
       
       // Small delay before starting capture
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       const captureInterval = instruction.duration / instruction.captureCount;
       
@@ -253,6 +314,9 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
           await new Promise(resolve => setTimeout(resolve, captureInterval));
         }
       }
+      
+      // End the recording indicator after capture completes
+      endRecordingIndicator();
       
       await new Promise(resolve => setTimeout(resolve, 400));
     }
@@ -342,34 +406,6 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
 
   return (
     <div className="face-verification">
-      {/* Live video preview */}
-      {videoStream && (
-        <div className="live-video-preview">
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-            style={{
-              width: '100%',
-              maxWidth: '640px',
-              borderRadius: '10px',
-              transform: 'scaleX(-1)',
-              border: status === 'liveness' ? '3px solid #ff9800' : 
-                     status === 'get_ready' ? '3px solid #2196f3' : 
-                     status === 'capturing_face' ? '3px solid #ff5722' : '3px solid #4caf50'
-            }}
-          />
-          <p className="video-label">
-            {status === 'liveness' ? (
-              currentInstruction.includes('NOW') ? 'Recording...' : 'Listen...'
-            ) : 
-             status === 'get_ready' ? 'Get Ready...' :
-             status === 'capturing_face' ? 'Capturing...' : 'Live Camera'}
-          </p>
-        </div>
-      )}
-      
       {/* Initial state - start button only */}
       {status === 'idle' && (
         <div className="face-actions-standalone">
@@ -390,8 +426,8 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
         </div>
       )}
 
-      {/* Liveness actions - show recording indicator when action */}
-      {status === 'liveness' && currentInstruction.includes('NOW') && (
+      {/* Liveness actions - show recording indicator (visual feedback on main video handles the rest) */}
+      {status === 'liveness' && visualMode === 'recording' && (
         <div className="face-status-standalone">
           <div className="recording-indicator">
             <span className="recording-dot"></span>

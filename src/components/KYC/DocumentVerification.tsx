@@ -5,11 +5,11 @@ import { uiEventLoggerService } from '../../services/uiEventLoggerService';
 
 interface DocumentVerificationProps {
   sessionId: string;
-  videoStream: MediaStream | null;
   onDocumentVerified: (documentId: string, ocrData: any) => void;
   loading: boolean;
   onStepInstruction?: (instruction: string, playAudio?: boolean, waitForAudio?: boolean) => Promise<void>;
-  mainVideoRef?: React.RefObject<HTMLVideoElement>;
+  // Reference to main video element for frame capture (parent owns the only <video>)
+  mainVideoRef: React.RefObject<HTMLVideoElement>;
 }
 
 // ID card standard aspect ratio (85.6mm x 53.98mm ≈ 1.586:1)
@@ -27,7 +27,6 @@ type CaptureStep =
 
 const DocumentVerification: React.FC<DocumentVerificationProps> = ({
   sessionId,
-  videoStream,
   onDocumentVerified,
   loading,
   onStepInstruction,
@@ -46,21 +45,9 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
   
   const [ocrResults, setOcrResults] = useState<any>(null);
   const [error, setError] = useState<string>('');
-  const localVideoRef = useRef<HTMLVideoElement>(null);
   
   // Track which steps have had audio played (to avoid replaying on re-renders)
   const audioPlayedRef = useRef<Set<string>>(new Set());
-
-  // Assign stream to video element - also re-run when step changes to capture mode
-  useEffect(() => {
-    if (localVideoRef.current && videoStream) {
-      localVideoRef.current.srcObject = videoStream;
-      // Ensure video plays
-      localVideoRef.current.play().catch(err => {
-        console.log('Video autoplay:', err);
-      });
-    }
-  }, [videoStream, step]);
 
   // Set step instruction based on current step (displays and plays audio)
   useEffect(() => {
@@ -111,9 +98,9 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
 
   // Calculate the card region coordinates accounting for object-fit: cover
   const getCardRegion = useCallback(() => {
-    // Use main video ref if available, otherwise fall back to local
-    const videoElement = mainVideoRef?.current || localVideoRef.current;
-    if (!videoElement) return null;
+    if (!mainVideoRef.current) return null;
+    
+    const videoElement = mainVideoRef.current;
     
     // Native video dimensions
     const nativeWidth = videoElement.videoWidth;
@@ -169,9 +156,9 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
   }, [mainVideoRef]);
 
   const captureImage = (): { file: File; imageUrl: string } | null => {
-    // Use main video ref if available, otherwise fall back to local
-    const videoElement = mainVideoRef?.current || localVideoRef.current;
-    if (!videoElement) return null;
+    if (!mainVideoRef.current) return null;
+    
+    const videoElement = mainVideoRef.current;
 
     const cardRegion = getCardRegion();
     
@@ -332,17 +319,6 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
 
   return (
     <div className="document-verification">
-      {/* Hidden video element for capture purposes only */}
-      {videoStream && (
-        <video
-          ref={localVideoRef}
-          autoPlay
-          playsInline
-          muted
-          style={{ display: 'none' }}
-        />
-      )}
-      
       {/* Document card - only render for snapshots */}
       {hasCardContent && (
         <div className="document-card document-card-minimal">

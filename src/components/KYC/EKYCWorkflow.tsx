@@ -3,12 +3,12 @@
  * Orchestrates the entire KYC verification process
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import kycApiService from '../../services/kycApiService';
 import ConsentScreen from './ConsentScreen';
 import LocationCapture from './LocationCapture';
 import DocumentVerification from './DocumentVerification';
-import FaceVerification from './FaceVerification';
+import FaceVerification, { VisualFeedbackState } from './FaceVerification';
 import FormScreen from './FormScreen';
 import CompletionScreen from './CompletionScreen';
 import { initializeAudio, playVoice, isAudioReady } from '../../services/audioService';
@@ -109,6 +109,17 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     isWifi: true,     // Show WiFi icon vs signal bars
     displayType: 'WiFi', // Label to show
   });
+  
+  // Visual feedback state for face verification (countdown, action cues)
+  const [visualFeedback, setVisualFeedback] = useState<VisualFeedbackState>({
+    mode: 'idle',
+    countdownNumber: null,
+  });
+  
+  // Callback for FaceVerification to update visual feedback state
+  const handleVisualFeedbackChange = useCallback((newState: VisualFeedbackState) => {
+    setVisualFeedback(newState);
+  }, []);
 
   // Monitor network status
   useEffect(() => {
@@ -608,7 +619,6 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
         return (
           <DocumentVerification
             sessionId={state.sessionId}
-            videoStream={localStream}
             onDocumentVerified={handleDocumentVerified}
             loading={loading}
             onStepInstruction={updateStepInstruction}
@@ -628,11 +638,12 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
           <FaceVerification
             sessionId={state.sessionId}
             documentId={state.documentId}
-            videoStream={localStream}
             onVerified={handleSecureVerified}
             onComplete={handleSecureVerificationComplete}
             loading={loading}
             onStepInstruction={updateStepInstruction}
+            onVisualFeedbackChange={handleVisualFeedbackChange}
+            mainVideoRef={videoRef}
           />
         );
 
@@ -720,13 +731,13 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
             {/* Left side - Video preview area */}
             <div className="ekyc-video-section">
               {isVideoStep && localStream ? (
-                <div className={`video-preview-container ${isDocumentStep ? 'document-mode' : ''}`}>
+                <div className={`video-preview-container ${isDocumentStep ? 'document-mode' : ''} ${state.currentStep === 'face' && visualFeedback.mode === 'action' ? 'action-time' : ''} ${state.currentStep === 'face' && visualFeedback.mode === 'recording' ? 'recording-active' : ''}`}>
                   <video
                     ref={videoRef}
                     autoPlay
                     playsInline
                     muted
-                    className={`main-video-preview ${isDocumentStep ? 'no-mirror' : ''}`}
+                    className={`main-video-preview ${isDocumentStep ? 'no-mirror' : ''} ${state.currentStep === 'face' && visualFeedback.mode === 'action' ? 'action-pulse' : ''}`}
                   />
                   <div className="video-overlay-badges">
                     <div className="video-overlay-badge">
@@ -740,6 +751,18 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
                       </div>
                     )}
                   </div>
+                  
+                  {/* Visual Countdown Overlay (3-2-1) for Face Verification only */}
+                  {state.currentStep === 'face' && visualFeedback.mode === 'countdown' && visualFeedback.countdownNumber !== null && (
+                    <div className="countdown-overlay">
+                      <div className="countdown-number">{visualFeedback.countdownNumber}</div>
+                    </div>
+                  )}
+                  
+                  {/* Recording pulse indicator during liveness capture - Face step only */}
+                  {state.currentStep === 'face' && visualFeedback.mode === 'recording' && (
+                    <div className="recording-pulse-ring"></div>
+                  )}
                   
                   {/* Network strength indicator - top right */}
                   <div className={`network-indicator strength-${networkInfo.strength} ${networkInfo.isWifi ? 'wifi' : 'cellular'}`}>
