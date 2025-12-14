@@ -3,13 +3,30 @@ import kycApiService from '../../services/kycApiService';
 import { stopAllAudio } from '../../services/audioService';
 import { uiEventLoggerService } from '../../services/uiEventLoggerService';
 
+interface LocationComparisonResult {
+  documentAddress?: string;
+  distanceKm?: number;
+  allowedRadiusKm?: number;
+  withinRadius?: boolean;
+  userCountry?: string;
+  documentCountry?: string;
+  sameCountry?: boolean;
+  verificationType?: 'radius' | 'country';
+  verified?: boolean;
+  message?: string;
+  locationSource?: 'gps' | 'ip';
+}
+
 interface DocumentVerificationProps {
   sessionId: string;
-  onDocumentVerified: (documentId: string, ocrData: any) => void;
+  onDocumentVerified: (documentId: string, ocrData: any, locationResult?: LocationComparisonResult) => void;
   loading: boolean;
   onStepInstruction?: (instruction: string, playAudio?: boolean, waitForAudio?: boolean) => Promise<void>;
   // Reference to main video element for frame capture (parent owns the only <video>)
   mainVideoRef: React.RefObject<HTMLVideoElement>;
+  // Location verification config - if enabled, location is verified after OCR
+  locationEnabled?: boolean;
+  locationRadiusKm?: number;
 }
 
 // ID card standard aspect ratio (85.6mm x 53.98mm ≈ 1.586:1)
@@ -23,6 +40,7 @@ type CaptureStep =
   | 'capture-back' 
   | 'review-back' 
   | 'processing' 
+  | 'verifying-location'
   | 'verified';
 
 const DocumentVerification: React.FC<DocumentVerificationProps> = ({
@@ -31,6 +49,8 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
   loading,
   onStepInstruction,
   mainVideoRef,
+  locationEnabled = false,
+  locationRadiusKm,
 }) => {
   const [step, setStep] = useState<CaptureStep>('capture-front');
   const [documentType] = useState<string>('auto');
@@ -43,6 +63,7 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
   const [backImage, setBackImage] = useState<string | null>(null);
   const [backFile, setBackFile] = useState<File | null>(null);
   
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [ocrResults, setOcrResults] = useState<any>(null);
   const [error, setError] = useState<string>('');
   
@@ -72,6 +93,9 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
           break;
         case 'processing':
           message = 'Verifying document. Please wait.';
+          break;
+        case 'verifying-location':
+          message = 'Verifying your location.';
           break;
         default:
           return;
@@ -278,7 +302,6 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
 
       if (ocrResponse.isValid) {
         setOcrResults(ocrResponse.ocrResults);
-        setStep('verified');
         
         // Log document verified
         uiEventLoggerService.logEvent('document_verified', {
@@ -286,16 +309,101 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
           extractedFields: ocrResponse.ocrResults?.extractedData ? Object.keys(ocrResponse.ocrResults.extractedData) : []
         });
         
-        // Set completion instruction and wait for audio to finish
-        if (onStepInstruction) {
-          await onStepInstruction('Thanks for waiting.', true, true);
-          audioPlayedRef.current.add('verified');
+        // If location verification is enabled and we have an address from OCR, verify location
+        const extractedAddress = ocrResponse.ocrResults?.extractedData?.address;
+        
+        if (locationEnabled && extractedAddress) {
+          setStep('verifying-location');
+          
+          // Play location verification audio and wait for it to complete
+          // Mark as played BEFORE the call to prevent useEffect from also playing it
+          audioPlayedRef.current.add('verifying-location');
+          if (onStepInstruction) {
+            await onStepInstruction('Verifying your location.', true, true);
+          }
+          
+          // Log location check started BEFORE the API call
+          uiEventLoggerService.logEvent('location_check_started', { 
+            documentAddress: extractedAddress,
+          });
+          
+          try {
+            // Get user's GPS location (or undefined to use IP-based)
+            let gpsLatitude: number | undefined;
+            let gpsLongitude: number | undefined;
+            
+            try {
+              const gpsResult = await kycApiService.getUserLocation();
+              if (gpsResult.gps) {
+                gpsLatitude = gpsResult.gps.latitude;
+                gpsLongitude = gpsResult.gps.longitude;
+              }
+            } catch (gpsErr) {
+              console.warn('GPS location error, will use IP-based:', gpsErr);
+            }
+            
+            // Compare location with document address
+            // Backend will log its decision during this call
+            const locResult = await kycApiService.compareLocationWithAddress(
+              sessionId,
+              gpsLatitude,
+              gpsLongitude,
+              extractedAddress,
+              locationRadiusKm
+            );
+            
+            // Log location check result display (after backend decision)
+            uiEventLoggerService.logLocationCheck(locResult.verified || false, {
+              latitude: gpsLatitude,
+              longitude: gpsLongitude,
+              distanceKm: locResult.distanceKm,
+              message: locResult.message,
+            });
+            
+            setStep('verified');
+            
+            // Set completion instruction
+            if (onStepInstruction) {
+              await onStepInstruction('Thanks for waiting.', true, true);
+              audioPlayedRef.current.add('verified');
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Include GPS coordinates in the result for storage
+            const locationResultWithGps = {
+              ...locResult,
+              gpsLatitude,
+              gpsLongitude,
+            };
+            onDocumentVerified(uploadResponse.documentId, ocrResponse.ocrResults, locationResultWithGps);
+            
+          } catch (locErr: any) {
+            console.error('Location verification error:', locErr);
+            // Log location verification error but don't block the flow
+            uiEventLoggerService.logError('location_verification_error', locErr.message || 'Location verification failed');
+            
+            // Continue with document verification even if location fails
+            setStep('verified');
+            if (onStepInstruction) {
+              await onStepInstruction('Thanks for waiting.', true, true);
+              audioPlayedRef.current.add('verified');
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            onDocumentVerified(uploadResponse.documentId, ocrResponse.ocrResults, undefined);
+          }
+        } else {
+          // No location verification needed
+          setStep('verified');
+          
+          if (onStepInstruction) {
+            await onStepInstruction('Thanks for waiting.', true, true);
+            audioPlayedRef.current.add('verified');
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          onDocumentVerified(uploadResponse.documentId, ocrResponse.ocrResults, undefined);
         }
-        
-        // Small pause after audio completes
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        onDocumentVerified(uploadResponse.documentId, ocrResponse.ocrResults);
       } else {
         setError(ocrResponse.validationErrors?.join(', ') || 'Document validation failed');
         setStep('review-back');
@@ -361,7 +469,7 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
       )}
 
       {/* Processing spinner only - message shown in instruction overlay */}
-      {step === 'processing' && (
+      {(step === 'processing' || step === 'verifying-location') && (
         <div className="document-status-standalone">
           <div className="spinner"></div>
         </div>

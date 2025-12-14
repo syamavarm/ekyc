@@ -725,8 +725,7 @@
    CHILD COMPONENT OVERRIDES
    ============================================ */
 
-/* Location, Document, Face within light theme */
-.ekyc-light .location-capture,
+/* Document, Face within light theme */
 .ekyc-light .face-verification,
 .ekyc-light .document-verification {
   display: block;
@@ -735,14 +734,12 @@
 }
 
 /* Hide the video preview in child components - we show it in main layout */
-.ekyc-light .location-capture .live-video-preview,
 .ekyc-light .face-verification .live-video-preview,
 .ekyc-light .document-verification .live-video-preview {
   display: none;
 }
 
 /* Card styles within light theme */
-.ekyc-light .location-card,
 .ekyc-light .document-card,
 .ekyc-light .face-card {
   background: transparent;
@@ -752,7 +749,6 @@
   border-radius: 0;
 }
 
-.ekyc-light .location-card h2,
 .ekyc-light .document-card h2,
 .ekyc-light .face-card h2 {
   font-size: 1.25rem;
@@ -762,7 +758,6 @@
   border-bottom: 1px solid #E5E5E5;
 }
 
-.ekyc-light .location-card p,
 .ekyc-light .document-card p,
 .ekyc-light .face-card p {
   color: #4B5563;
@@ -867,36 +862,6 @@
 .ekyc-light .document-status-standalone.success p {
   color: #059669;
   font-weight: 500;
-}
-
-/* ============================================
-   LOCATION CAPTURE
-   ============================================ */
-
-.ekyc-light .location-status-standalone {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 32px;
-  text-align: center;
-}
-
-.ekyc-light .location-status-standalone .location-coords {
-  margin: 0;
-  font-size: 14px;
-  color: #6B7280;
-  font-family: monospace;
-}
-
-.ekyc-light .location-status-standalone.success .location-coords {
-  color: #059669;
-}
-
-.ekyc-light .location-status-standalone.error p {
-  margin: 0;
-  font-size: 14px;
-  color: #DC2626;
 }
 
 /* ============================================

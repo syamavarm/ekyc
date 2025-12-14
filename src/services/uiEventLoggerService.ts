@@ -38,9 +38,8 @@ export type UIEventType =
   | 'otp_voice_verification'
   | 'verification_escalated'
   // Location events
-  | 'location_capture_started'
   | 'location_check_started'
-  | 'location_check_display'
+  | 'location_check_completed'
   // Form events
   | 'form_started'
   | 'form_answer_submitted'
@@ -290,7 +289,7 @@ class UIEventLoggerService {
     distanceKm?: number;
     message?: string;
   }): UIEvent | null {
-    return this.logEvent('location_check_display', { verified, ...details });
+    return this.logEvent('location_check_completed', { verified, ...details });
   }
 
   logError(errorCode: string, errorMessage: string, context?: Record<string, any>): UIEvent | null {

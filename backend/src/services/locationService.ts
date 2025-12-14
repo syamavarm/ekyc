@@ -259,6 +259,8 @@ export class LocationService {
         },
       });
 
+      console.log(`[LocationService] Geocoding response: ${JSON.stringify(response.data)}`);
+
       if (response.data && response.data.length > 0) {
         const result = response.data[0];
         const geocoded: GeocodingResult = {
@@ -453,16 +455,16 @@ export class LocationService {
       const geocodedAddress = await this.geocodeAddress(documentAddress);
 
       if (!geocodedAddress) {
-        return {
-          verified: false,
-          userCoordinates: {
-            latitude: userLatitude,
-            longitude: userLongitude,
-          },
-          allowedRadiusKm,
-          verificationType: 'radius',
-          message: 'Could not geocode document address for comparison',
-        };
+        // Geocoding completely failed - fall back to country comparison
+        console.log(`[LocationService] Geocoding failed completely, falling back to country comparison`);
+        return this.compareCountries(userLatitude, userLongitude, documentAddress);
+      }
+
+      // Check if geocoding only returned country (coordinates are 0,0)
+      // This happens when the geocoding API fails but we extract country from text patterns
+      if (geocodedAddress.latitude === 0 && geocodedAddress.longitude === 0) {
+        console.log(`[LocationService] Geocoding returned only country info (no coordinates), falling back to country comparison`);
+        return this.compareCountries(userLatitude, userLongitude, documentAddress);
       }
 
       // Calculate distance between user location and document address
@@ -497,16 +499,23 @@ export class LocationService {
       };
     } catch (error) {
       console.error('[LocationService] Location comparison error:', error);
-      return {
-        verified: false,
-        userCoordinates: {
-          latitude: userLatitude,
-          longitude: userLongitude,
-        },
-        allowedRadiusKm,
-        verificationType: 'radius',
-        message: 'Error comparing location with document address',
-      };
+      // On error, try country comparison as fallback
+      console.log(`[LocationService] Radius comparison failed, falling back to country comparison`);
+      try {
+        return await this.compareCountries(userLatitude, userLongitude, documentAddress);
+      } catch (countryError) {
+        console.error('[LocationService] Country comparison also failed:', countryError);
+        return {
+          verified: false,
+          userCoordinates: {
+            latitude: userLatitude,
+            longitude: userLongitude,
+          },
+          allowedRadiusKm,
+          verificationType: 'radius',
+          message: 'Error comparing location with document address',
+        };
+      }
     }
   }
 

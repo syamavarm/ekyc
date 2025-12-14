@@ -6,7 +6,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import kycApiService from '../../services/kycApiService';
 import ConsentScreen from './ConsentScreen';
-import LocationCapture from './LocationCapture';
 import DocumentVerification from './DocumentVerification';
 import FaceVerification, { VisualFeedbackState } from './FaceVerification';
 import FormScreen from './FormScreen';
@@ -18,7 +17,6 @@ import './EKYCWorkflow.css';
 
 export type WorkflowStep =
   | 'consent'
-  | 'location'
   | 'video_call'
   | 'document'
   | 'face'
@@ -181,7 +179,8 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     
     if (!workflowSteps) {
       // If no workflow config, return all steps (default flow)
-      return ['consent', 'video_call', 'document', 'location', 'face', 'form', 'completion'];
+      // Note: Location is integrated into document step, not shown separately
+      return ['consent', 'video_call', 'document', 'face', 'form', 'completion'];
     }
     
     // Secure verification requires document (for face matching)
@@ -193,15 +192,14 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       steps.push('video_call');
     }
     
-    // Add document if enabled (before location)
+    // Add document if enabled
+    // Location verification is now integrated into the document step when both are enabled
     if (workflowSteps.documentOCR) {
       steps.push('document');
     }
     
-    // Add location AFTER document if enabled
-    if (workflowSteps.locationCapture) {
-      steps.push('location');
-    }
+    // Note: Location capture without document OCR is no longer supported as a separate step
+    // Location verification requires document address for comparison
     
     // Add secure verification step (combined face + liveness)
     if (canDoSecureVerification) {
@@ -352,7 +350,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     uiEventLoggerService.logStepStarted(nextStep);
     
     // Check if any upcoming step (including this one) needs the camera
-    const stepsNeedingCamera: WorkflowStep[] = ['location', 'video_call', 'document', 'face', 'form'];
+    const stepsNeedingCamera: WorkflowStep[] = ['video_call', 'document', 'face', 'form'];
     const currentIndex = enabledSteps.indexOf(nextStep);
     const remainingSteps = enabledSteps.slice(currentIndex);
     const anyCameraStepRemaining = remainingSteps.some(step => stepsNeedingCamera.includes(step));
@@ -382,7 +380,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       const nextStep = getNextStep('consent');
       moveToNextStep(nextStep);
       // Start video stream if moving to a camera-dependent step
-      const stepsNeedingCamera: WorkflowStep[] = ['location', 'video_call', 'document', 'face', 'form'];
+      const stepsNeedingCamera: WorkflowStep[] = ['video_call', 'document', 'face', 'form'];
       if (stepsNeedingCamera.includes(nextStep) && !localStream) {
         console.log(`[EKYCWorkflow] Starting camera for ${nextStep} step`);
         setTimeout(() => startVideoStream(), 100);
@@ -399,28 +397,6 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     }
   };
 
-  const handleLocationCaptured = async (location: any) => {
-    try {
-      setLoading(true);
-      await kycApiService.submitLocation(state.sessionId, location);
-      const nextStep = getNextStep('location');
-      moveToNextStep(nextStep);
-      // Restart video stream if moving to a camera-dependent step and stream is not active
-      const stepsNeedingCamera: WorkflowStep[] = ['location', 'video_call', 'document', 'face', 'form'];
-      if (stepsNeedingCamera.includes(nextStep) && !localStream) {
-        console.log(`[EKYCWorkflow] Restarting camera for ${nextStep} step`);
-        setTimeout(() => startVideoStream(), 100);
-      }
-    } catch (error) {
-      console.error('Location submission failed:', error);
-      setState(prev => ({
-        ...prev,
-        error: 'Failed to submit location. Please try again.',
-      }));
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const startVideoStream = async () => {
     try {
@@ -501,12 +477,31 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     moveToNextStep(nextStep);
   };
 
-  const handleDocumentVerified = async (documentId: string, ocrData: any) => {
+  const handleDocumentVerified = async (documentId: string, ocrData: any, locationResult?: any) => {
     // Log document verification event
     uiEventLoggerService.logEvent('document_captured', {
       documentType: ocrData?.documentType,
       hasOcrData: !!ocrData?.extractedData,
     });
+    
+    // If location was verified as part of document step, submit the GPS coordinates to backend
+    if (locationResult) {
+      // Submit location data to backend for report generation
+      try {
+        // Include GPS coordinates if available
+        const locationData: any = {};
+        if (locationResult.gpsLatitude !== undefined && locationResult.gpsLongitude !== undefined) {
+          locationData.gps = {
+            latitude: locationResult.gpsLatitude,
+            longitude: locationResult.gpsLongitude,
+            accuracy: 0, // Accuracy not tracked in this flow
+          };
+        }
+        await kycApiService.submitLocation(state.sessionId, locationData);
+      } catch (err) {
+        console.warn('Failed to submit location data:', err);
+      }
+    }
     
     // Extract only essential OCR data needed for subsequent steps.
     // Full OCR data remains stored in the backend against the sessionId.
@@ -579,19 +574,6 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
           />
         );
 
-      case 'location':
-        return (
-          <LocationCapture
-            sessionId={state.sessionId}
-            onLocationCaptured={handleLocationCaptured}
-            loading={loading}
-            documentAddress={state.essentialOcrData?.address}
-            locationRadiusKm={workflowSteps?.locationRadiusKm}
-            videoStream={localStream}
-            onStepInstruction={updateStepInstruction}
-          />
-        );
-
       case 'video_call':
         // Determine the next step to show correct button text
         const nextStepAfterVideo = getNextStep('video_call');
@@ -650,6 +632,9 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
         );
 
       case 'document':
+        // Pass location config to DocumentVerification if both document and location are enabled
+        const shouldVerifyLocation = workflowSteps?.locationCapture && workflowSteps?.documentOCR;
+        
         return (
           <DocumentVerification
             sessionId={state.sessionId}
@@ -657,6 +642,8 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
             loading={loading}
             onStepInstruction={updateStepInstruction}
             mainVideoRef={videoRef}
+            locationEnabled={shouldVerifyLocation}
+            locationRadiusKm={workflowSteps?.locationRadiusKm}
           />
         );
 
@@ -711,7 +698,6 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   const getStepLabel = (step: WorkflowStep): string => {
     const labels: Record<WorkflowStep, string> = {
       'consent': 'Consent',
-      'location': 'Location',
       'video_call': 'Camera',
       'document': 'Document',
       'face': 'Presence Verification',
@@ -725,7 +711,6 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   const getStepInstruction = (): string => {
     const instructions: Record<WorkflowStep, string> = {
       'consent': 'Review and accept the terms to continue',
-      'location': 'Verifying your location',
       'video_call': 'Ensure you can see yourself clearly and your face is well lit.',
       'document': 'Hold your document within the frame',
       'face': 'Follow the on-screen instructions',
@@ -736,7 +721,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   };
 
   // Check if current step uses video
-  const isVideoStep = ['video_call', 'face', 'location', 'document', 'form'].includes(state.currentStep);
+  const isVideoStep = ['video_call', 'face', 'document', 'form'].includes(state.currentStep);
   const isDocumentStep = state.currentStep === 'document';
   const isConsentStep = state.currentStep === 'consent';
   const isCompletionStep = state.currentStep === 'completion';
