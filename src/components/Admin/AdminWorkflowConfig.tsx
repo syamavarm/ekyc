@@ -82,6 +82,16 @@ interface KYCSession {
       consistencyScore: number;
     };
     overallResult: boolean;
+    otpVoiceVerification?: {
+      verified: boolean;
+      attempts: number;
+      verifiedAt?: string;
+    };
+    escalation?: {
+      escalated: boolean;
+      reason?: string;
+      escalatedAt?: string;
+    };
   };
   verificationResults: VerificationResults;
   overallScore?: number;
@@ -525,10 +535,10 @@ const AdminWorkflowConfig: React.FC = () => {
                 onChange={(e) => setSelectedForm(e.target.value)}
                 className="form-select"
               >
-                <option value="">Select a field set...</option>
+                <option value="">Select a form</option>
                 {fieldSets.map((fs) => (
                   <option key={fs.id} value={fs.id}>
-                    {fs.name} ({fs.fieldCount} fields)
+                    {fs.name}
                   </option>
                 ))}
               </select>
@@ -751,7 +761,7 @@ const AdminWorkflowConfig: React.FC = () => {
                           <span>Document</span>
                         </div>
                       )}
-                      {/* Face+Liveness - only show if enabled in workflow */}
+                      {/* Face+Liveness+OTP - only show if enabled in workflow */}
                       {session.workflowSteps?.secureVerification && (
                         <>
                           {session.secureVerification ? (
@@ -768,6 +778,22 @@ const AdminWorkflowConfig: React.FC = () => {
                                 </span>
                                 <span>Liveness ({(session.secureVerification.liveness.confidenceScore * 100).toFixed(0)}%)</span>
                               </div>
+                              {/* OTP Voice Verification */}
+                              {session.secureVerification.otpVoiceVerification && (
+                                <div className={`check-item ${session.secureVerification.otpVoiceVerification.verified ? 'passed' : 'failed'}`}>
+                                  <span className="check-icon">
+                                    {session.secureVerification.otpVoiceVerification.verified ? '✓' : '✗'}
+                                  </span>
+                                  <span>OTP Voice</span>
+                                </div>
+                              )}
+                              {/* Escalation indicator */}
+                              {session.secureVerification.escalation?.escalated && (
+                                <div className="check-item escalated">
+                                  <span className="check-icon">⚠</span>
+                                  <span>Escalated</span>
+                                </div>
+                              )}
                             </>
                           ) : (
                             <div className="check-item failed">

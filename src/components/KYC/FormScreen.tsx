@@ -254,7 +254,7 @@ const FormScreen: React.FC<FormScreenProps> = ({
     const playIntroAndLoad = async () => {
       if (onStepInstruction) {
         await onStepInstruction(
-          'Please answer a few questions to complete your verification process. You can speak your answers or type them.',
+          'Please answer a few questions to complete your verification process. You can speak your answers or select them from the options.',
           true,
           true
         );

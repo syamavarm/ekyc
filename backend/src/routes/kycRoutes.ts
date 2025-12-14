@@ -743,6 +743,113 @@ router.post('/face-liveness', upload.fields([
 });
 
 /**
+ * POST /kyc/otp-verification
+ * Update session with OTP voice verification result or escalation status
+ * Called after OTP verification attempt on frontend
+ */
+router.post('/otp-verification', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, verified, attempts, escalated, escalationReason } = req.body;
+    
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing sessionId',
+        message: 'sessionId is required',
+      } as ErrorResponse);
+    }
+    
+    const session = sessionManager.getSession(sessionId);
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found',
+        message: `No KYC session found with ID: ${sessionId}`,
+      } as ErrorResponse);
+    }
+    
+    // Get current secure verification data
+    const currentSecureVerification = session.secureVerification;
+    if (!currentSecureVerification) {
+      return res.status(400).json({
+        success: false,
+        error: 'No secure verification data',
+        message: 'Face/liveness verification must be completed first',
+      } as ErrorResponse);
+    }
+    
+    // Update with OTP verification result
+    const updatedSecureVerification = {
+      ...currentSecureVerification,
+      otpVoiceVerification: {
+        verified: verified === true,
+        attempts: attempts || 1,
+        verifiedAt: verified ? new Date() : undefined,
+      },
+      // Update overall result based on OTP
+      overallResult: currentSecureVerification.faceMatch.isMatch && 
+                     currentSecureVerification.liveness.overallResult &&
+                     currentSecureVerification.faceConsistency.isConsistent &&
+                     verified === true,
+    };
+    
+    // Add escalation if applicable
+    if (escalated) {
+      updatedSecureVerification.escalation = {
+        escalated: true,
+        reason: escalationReason || 'Verification could not be completed automatically',
+        escalatedAt: new Date(),
+      };
+      // If escalated, overall result is false (needs manual review)
+      updatedSecureVerification.overallResult = false;
+    }
+    
+    // Update session
+    sessionManager.updateSecureVerification(sessionId, updatedSecureVerification);
+    
+    // Log to timeline - always log OTP decision
+    // Always log OTP verification result (pass or fail)
+    sessionTimelineService.saveBackendDecision(sessionId, 'otp_verification', verified === true, {
+      additionalData: { 
+        attempts: attempts,
+        verified: verified === true,
+        reason: !verified ? (escalationReason || 'OTP mismatch') : undefined,
+      },
+    });
+    
+    // Additionally log escalation if applicable
+    if (escalated) {
+      sessionTimelineService.saveBackendDecision(sessionId, 'escalation', false, {
+        additionalData: { 
+          reason: escalationReason,
+          totalOtpAttempts: attempts,
+        },
+      });
+    }
+    
+    console.log(`[KYC Routes] OTP verification update: sessionId=${sessionId}, verified=${verified}, escalated=${escalated}`);
+    
+    res.status(200).json({
+      success: true,
+      overallResult: updatedSecureVerification.overallResult,
+      escalated: escalated || false,
+      message: escalated 
+        ? 'Session escalated for manual review' 
+        : verified 
+          ? 'OTP verification successful - all checks passed'
+          : 'OTP verification failed',
+    });
+  } catch (error) {
+    console.error('[KYC Routes] Error updating OTP verification:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: 'Failed to update OTP verification status',
+    } as ErrorResponse);
+  }
+});
+
+/**
  * POST /kyc/complete
  * Mark session as complete
  */
@@ -1037,10 +1144,10 @@ router.get('/form/sets', async (req: Request, res: Response) => {
       
       // Generate display name
       const displayNames: Record<string, string> = {
-        'account_opening': '🏦 Account Opening',
-        'credit_card': '💳 Credit Card Application',
-        'investment': '📈 Investment Account',
-        'loan_application': '🏠 Loan Application',
+        'account_opening': 'Account Opening',
+        'credit_card': 'Credit Card Application',
+        'investment': 'Investment Account',
+        'loan_application': 'Loan Application',
       };
       
       return {

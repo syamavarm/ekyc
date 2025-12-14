@@ -47,7 +47,7 @@ export interface UIEvent {
 export interface BackendDecision {
   sessionId: string;
   decisionId: string;
-  type: 'face_match' | 'liveness_check' | 'ocr_result' | 'location_check' | 'form_result' | 'session_complete';
+  type: 'face_match' | 'liveness_check' | 'ocr_result' | 'location_check' | 'form_result' | 'session_complete' | 'otp_verification' | 'escalation';
   result: boolean;
   score?: number;
   confidence?: number;

@@ -70,6 +70,12 @@ interface WorkflowState {
    */
   essentialOcrData?: EssentialOCRData;
   error?: string;
+  /**
+   * Escalation state - when verification cannot be completed automatically
+   * and requires human/manual review
+   */
+  isEscalated?: boolean;
+  escalationReason?: string;
 }
 
 const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
@@ -91,6 +97,9 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   const [loading, setLoading] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  
+  // Ref to track escalation status (for immediate access in callbacks)
+  const escalationRef = useRef(false);
   
   // Audio state for camera setup step
   const [cameraAudioPlayed, setCameraAudioPlayed] = useState(false);
@@ -518,15 +527,40 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   };
 
   const handleSecureVerified = () => {
-    // Secure verification passed (face match + liveness + consistency)
+    // Secure verification passed (face match + liveness + consistency + OTP voice)
     console.log('[EKYCWorkflow] Secure verification passed');
   };
 
   const handleSecureVerificationComplete = () => {
-    // Secure verification step is complete
+    // Check if escalation happened - if so, skip to completion
+    // We use a ref to check for escalation since state might not be updated yet
+    if (escalationRef.current) {
+      console.log('[EKYCWorkflow] Verification was escalated, skipping to completion');
+      moveToNextStep('completion');
+      return;
+    }
+    
+    // Secure verification step is complete normally
     const nextStep = getNextStep('face');
     console.log('[EKYCWorkflow] Secure verification complete, moving to:', nextStep);
     moveToNextStep(nextStep);
+  };
+
+  const handleVerificationEscalated = (reason: string) => {
+    // Verification escalated to human/manual review
+    console.log('[EKYCWorkflow] Verification escalated:', reason);
+    
+    // Set ref immediately for synchronous access
+    escalationRef.current = true;
+    
+    setState(prev => ({
+      ...prev,
+      isEscalated: true,
+      escalationReason: reason,
+    }));
+    
+    // Log escalation event
+    uiEventLoggerService.logEvent('verification_escalated', { reason });
   };
 
   const handleFormCompleted = () => {
@@ -644,6 +678,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
             onStepInstruction={updateStepInstruction}
             onVisualFeedbackChange={handleVisualFeedbackChange}
             mainVideoRef={videoRef}
+            onEscalate={handleVerificationEscalated}
           />
         );
 
@@ -662,6 +697,8 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
         return (
           <CompletionScreen
             sessionId={state.sessionId}
+            isEscalated={state.isEscalated}
+            escalationReason={state.escalationReason}
           />
         );
 
@@ -677,7 +714,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       'location': 'Location',
       'video_call': 'Camera',
       'document': 'Document',
-      'face': 'Face Verification',
+      'face': 'Presence Verification',
       'form': 'Data Collection',
       'completion': 'Complete',
     };

@@ -450,6 +450,12 @@
   color: #dc2626;
 }
 
+.check-item.escalated {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fcd34d;
+}
+
 .check-icon {
   font-weight: bold;
 }

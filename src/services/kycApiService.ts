@@ -389,6 +389,43 @@ class KYCApiService {
   }
 
   /**
+   * Update OTP voice verification result
+   * Called after OTP verification attempt on frontend
+   */
+  async updateOTPVerification(
+    sessionId: string,
+    verified: boolean,
+    attempts: number,
+    escalated?: boolean,
+    escalationReason?: string
+  ): Promise<{
+    success: boolean;
+    overallResult: boolean;
+    escalated: boolean;
+    message: string;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/kyc/otp-verification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sessionId,
+        verified,
+        attempts,
+        escalated,
+        escalationReason,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update OTP verification');
+    }
+
+    return response.json();
+  }
+
+  /**
    * Complete KYC session
    */
   async completeKYC(sessionId: string): Promise<CompleteKYCResponse> {

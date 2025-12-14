@@ -32,6 +32,11 @@ export type UIEventType =
   | 'liveness_check_started'
   | 'liveness_action'
   | 'liveness_check_completed'
+  | 'liveness_passed_starting_otp'
+  | 'liveness_failed_escalating'
+  // OTP voice verification events
+  | 'otp_voice_verification'
+  | 'verification_escalated'
   // Location events
   | 'location_capture_started'
   | 'location_check_started'

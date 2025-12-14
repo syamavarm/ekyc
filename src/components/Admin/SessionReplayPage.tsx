@@ -253,6 +253,10 @@ const SessionReplayPage: React.FC<SessionReplayPageProps> = ({ sessionId, onBack
           return result ? '❓' : '❓';
         case 'session_complete':
           return result ? '🎉' : '⚠️';
+        case 'otp_verification':
+          return result ? '🎤' : '🔇';
+        case 'escalation':
+          return '⚠️';
         default:
           return '⚙️';
       }
@@ -292,6 +296,7 @@ const SessionReplayPage: React.FC<SessionReplayPageProps> = ({ sessionId, onBack
   const getEventLabel = (entry: TimelineEntry): string => {
     if (entry.type === 'backend_decision') {
       const result = entry.data.result ? 'PASS' : 'FAIL';
+      const details = entry.data.details || {};
       switch (entry.subType) {
         case 'face_match':
           return `Face Match: ${result} (${((entry.data.score || 0) * 100).toFixed(0)}%)`;
@@ -305,6 +310,10 @@ const SessionReplayPage: React.FC<SessionReplayPageProps> = ({ sessionId, onBack
           return `Form: ${result} (${((entry.data.score || 0) * 100).toFixed(0)}%)`;
         case 'session_complete':
           return `Session ${result === 'PASS' ? 'Completed' : 'Failed'}`;
+        case 'otp_verification':
+          return `OTP Voice: ${result}${details.attempts ? ` (Attempt ${details.attempts})` : ''}`;
+        case 'escalation':
+          return `Escalated: ${details.reason || 'Manual review required'}`;
         default:
           return entry.subType || 'Decision';
       }

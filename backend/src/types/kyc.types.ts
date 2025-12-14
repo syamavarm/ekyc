@@ -57,7 +57,7 @@ export type KYCStatus =
   | 'expired';
 
 /**
- * Combined secure verification data (face match + liveness + consistency)
+ * Combined secure verification data (face match + liveness + consistency + OTP voice)
  * Stores all results from the unified verification step
  */
 export interface SecureVerificationData {
@@ -82,6 +82,20 @@ export interface SecureVerificationData {
     isConsistent: boolean;
     consistencyScore: number;
     message: string;
+  };
+  
+  // OTP voice verification (presence check)
+  otpVoiceVerification?: {
+    verified: boolean;
+    attempts: number;
+    verifiedAt?: Date;
+  };
+  
+  // Escalation status (if verification couldn't be completed automatically)
+  escalation?: {
+    escalated: boolean;
+    reason: string;
+    escalatedAt: Date;
   };
   
   // Overall result

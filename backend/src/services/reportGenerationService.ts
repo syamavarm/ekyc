@@ -260,6 +260,26 @@ export class ReportGenerationService {
       lines.push(`  Score: ${(session.secureVerification.faceConsistency.consistencyScore * 100).toFixed(2)}%`);
       lines.push(`  Message: ${session.secureVerification.faceConsistency.message}`);
       lines.push('');
+      
+      // OTP Voice Verification
+      if (session.secureVerification.otpVoiceVerification) {
+        lines.push('OTP Voice Verification:');
+        lines.push(`  Result: ${session.secureVerification.otpVoiceVerification.verified ? 'VERIFIED' : 'FAILED'}`);
+        lines.push(`  Attempts: ${session.secureVerification.otpVoiceVerification.attempts}`);
+        if (session.secureVerification.otpVoiceVerification.verifiedAt) {
+          lines.push(`  Verified At: ${session.secureVerification.otpVoiceVerification.verifiedAt.toLocaleString()}`);
+        }
+        lines.push('');
+      }
+      
+      // Escalation (if any)
+      if (session.secureVerification.escalation?.escalated) {
+        lines.push('⚠️ ESCALATION:');
+        lines.push(`  Status: ESCALATED FOR MANUAL REVIEW`);
+        lines.push(`  Reason: ${session.secureVerification.escalation.reason}`);
+        lines.push(`  Escalated At: ${session.secureVerification.escalation.escalatedAt.toLocaleString()}`);
+        lines.push('');
+      }
     }
     
     // Form Fields
