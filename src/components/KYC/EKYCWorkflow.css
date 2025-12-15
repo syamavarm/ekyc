@@ -686,19 +686,6 @@
   margin-top: 0;
 }
 
-.ekyc-light .camera-ready-message {
-  text-align: center;
-  padding: 16px;
-  margin-bottom: 16px;
-}
-
-.ekyc-light .camera-ready-message p {
-  color: #4B5563;
-  font-size: 14px;
-  margin: 0;
-  display: block;
-}
-
 /* ============================================
    STATUS MESSAGE & SPINNER
    ============================================ */

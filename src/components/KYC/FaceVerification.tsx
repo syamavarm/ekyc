@@ -403,7 +403,7 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({
     }
     
     if (onStepInstruction) {
-      await onStepInstruction('We could not complete the voice verification. Your session will be reviewed manually.', true, true);
+      await onStepInstruction('We could not complete the presence verification. Your session will be reviewed manually.', true, true);
     }
     
     stopAllAudio();

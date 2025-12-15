@@ -641,11 +641,6 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
                 <p>Starting camera...</p>
               </div>
             )}
-            {localStream && (
-              <div className="camera-ready-message">
-                <p>Camera is active. Ensure you can see yourself clearly.</p>
-              </div>
-            )}
             <div className="video-actions">
               {!localStream && (
                 <button
