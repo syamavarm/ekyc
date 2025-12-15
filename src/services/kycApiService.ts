@@ -499,6 +499,43 @@ class KYCApiService {
   }
 
   /**
+   * Reverse geocode GPS coordinates to get readable location
+   * Used to display user's current location during the session
+   */
+  async reverseGeocode(
+    latitude: number,
+    longitude: number
+  ): Promise<{
+    displayLocation: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    countryCode?: string;
+    formattedAddress?: string;
+  } | null> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/kyc/location/reverse-geocode`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ latitude, longitude }),
+      });
+
+      if (!response.ok) {
+        console.warn('Failed to reverse geocode location');
+        return null;
+      }
+
+      const data = await response.json();
+      return data.location;
+    } catch (error) {
+      console.error('Error reverse geocoding:', error);
+      return null;
+    }
+  }
+
+  /**
    * Compare user's location with document address
    * If latitude/longitude provided, uses GPS coordinates
    * If not provided, backend uses IP-based location

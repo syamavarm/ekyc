@@ -253,6 +253,77 @@ router.post('/location', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /kyc/location/reverse-geocode
+ * Reverse geocode GPS coordinates to get readable address
+ * Used to display current location during the session
+ */
+router.post('/location/reverse-geocode', async (req: Request, res: Response) => {
+  try {
+    const { latitude, longitude } = req.body;
+    
+    if (latitude === undefined || longitude === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing coordinates',
+        message: 'latitude and longitude are required',
+      } as ErrorResponse);
+    }
+    
+    // Validate coordinates
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid coordinates',
+        message: 'latitude must be between -90 and 90, longitude between -180 and 180',
+      } as ErrorResponse);
+    }
+    
+    // Reverse geocode the coordinates
+    const result = await locationService.reverseGeocode(latitude, longitude);
+    
+    if (!result) {
+      return res.status(200).json({
+        success: true,
+        location: null,
+        message: 'Could not reverse geocode the coordinates',
+      });
+    }
+    
+    // Format a short display string
+    let displayLocation = '';
+    if (result.city && result.state) {
+      displayLocation = `${result.city}, ${result.state}`;
+    } else if (result.city) {
+      displayLocation = result.city;
+    } else if (result.state) {
+      displayLocation = result.state;
+    } else if (result.country) {
+      displayLocation = result.country;
+    }
+    
+    res.status(200).json({
+      success: true,
+      location: {
+        displayLocation,
+        city: result.city,
+        state: result.state,
+        country: result.country,
+        countryCode: result.countryCode,
+        formattedAddress: result.formattedAddress,
+      },
+      message: 'Location reverse geocoded successfully',
+    });
+  } catch (error) {
+    console.error('[KYC Routes] Error reverse geocoding:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: 'Failed to reverse geocode location',
+    } as ErrorResponse);
+  }
+});
+
+/**
  * POST /kyc/document/upload
  * Upload document image
  */

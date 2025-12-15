@@ -122,25 +122,60 @@
    NETWORK INDICATOR
    ============================================ */
 
-.ekyc-light .network-indicator {
+/* Network & Location indicators container */
+.ekyc-light .network-location-indicators {
   position: absolute;
   top: 16px;
   right: 16px;
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 10px;
+  z-index: 10;
+}
+
+/* Location indicator */
+.ekyc-light .location-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);
-  padding: 8px 12px;
+  padding: 6px 12px;
   border-radius: 6px;
-  z-index: 10;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.ekyc-light .location-icon {
+  color: #60a5fa;
+  flex-shrink: 0;
+}
+
+.ekyc-light .location-text {
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ekyc-light .network-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  padding: 6px 12px;
+  border-radius: 6px;
 }
 
 .ekyc-light .signal-bars {
   display: flex;
   align-items: flex-end;
   gap: 2px;
-  height: 16px;
+  height: 14px;
 }
 
 .ekyc-light .signal-bar {
@@ -150,10 +185,10 @@
   transition: background 0.2s ease;
 }
 
-.ekyc-light .signal-bar:nth-child(1) { height: 4px; }
-.ekyc-light .signal-bar:nth-child(2) { height: 8px; }
-.ekyc-light .signal-bar:nth-child(3) { height: 12px; }
-.ekyc-light .signal-bar:nth-child(4) { height: 16px; }
+.ekyc-light .signal-bar:nth-child(1) { height: 3px; }
+.ekyc-light .signal-bar:nth-child(2) { height: 6px; }
+.ekyc-light .signal-bar:nth-child(3) { height: 10px; }
+.ekyc-light .signal-bar:nth-child(4) { height: 14px; }
 
 .ekyc-light .signal-bar.active {
   background: #4ade80;

@@ -117,6 +117,10 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
     displayType: 'WiFi', // Label to show
   });
   
+  // User's current location (reverse geocoded)
+  const [userLocation, setUserLocation] = useState<string | null>(null);
+  const [locationFetching, setLocationFetching] = useState(false);
+  
   // Visual feedback state for face verification (countdown, action cues)
   const [visualFeedback, setVisualFeedback] = useState<VisualFeedbackState>({
     mode: 'idle',
@@ -171,6 +175,41 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       return () => connection.removeEventListener('change', updateNetworkInfo);
     }
   }, []);
+
+  // Fetch and reverse geocode user's location after consent (when moving past consent step)
+  useEffect(() => {
+    const fetchUserLocation = async () => {
+      // Only fetch once, after consent is completed and we're past the consent step
+      if (state.currentStep === 'consent' || userLocation || locationFetching) {
+        return;
+      }
+      
+      setLocationFetching(true);
+      
+      try {
+        // Get GPS coordinates
+        const locationData = await kycApiService.getUserLocation();
+        
+        if (locationData.gps) {
+          // Reverse geocode the coordinates
+          const geocoded = await kycApiService.reverseGeocode(
+            locationData.gps.latitude,
+            locationData.gps.longitude
+          );
+          
+          if (geocoded?.displayLocation) {
+            setUserLocation(geocoded.displayLocation);
+          }
+        }
+      } catch (error) {
+        console.warn('[EKYCWorkflow] Could not fetch user location:', error);
+      } finally {
+        setLocationFetching(false);
+      }
+    };
+    
+    fetchUserLocation();
+  }, [state.currentStep, userLocation, locationFetching]);
 
   // Calculate enabled steps based on workflow configuration
   // Location capture now comes AFTER document verification to enable address comparison
@@ -786,25 +825,38 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
                     <div className="recording-pulse-ring"></div>
                   )}
                   
-                  {/* Network strength indicator - top right */}
-                  <div className={`network-indicator strength-${networkInfo.strength} ${networkInfo.isWifi ? 'wifi' : 'cellular'}`}>
-                    {networkInfo.isWifi ? (
-                      /* WiFi icon */
-                      <svg className="wifi-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                        <path d="M12 18c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm-4.9-2.3l1.4 1.4C9.5 16.5 10.7 16 12 16s2.5.5 3.5 1.1l1.4-1.4C15.6 14.6 13.9 14 12 14s-3.6.6-4.9 1.7zm-2.8-2.8l1.4 1.4C7.3 13.2 9.5 12 12 12s4.7 1.2 6.3 2.3l1.4-1.4C17.7 11.2 15 10 12 10s-5.7 1.2-7.7 2.9zM1.5 10l1.4 1.4C5.1 9.2 8.4 8 12 8s6.9 1.2 9.1 3.4L22.5 10C19.8 7.4 16.1 6 12 6S4.2 7.4 1.5 10z"/>
-                      </svg>
-                    ) : (
-                      /* Cellular signal bars */
-                      <div className="signal-bars">
-                        {[1, 2, 3, 4].map((bar) => (
-                          <div
-                            key={bar}
-                            className={`signal-bar ${bar <= networkInfo.strength ? 'active' : ''}`}
-                          />
-                        ))}
+                  {/* Network & Location indicator - top right */}
+                  <div className="network-location-indicators">
+                    {/* Location display */}
+                    {userLocation && (
+                      <div className="location-indicator">
+                        <svg className="location-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                        </svg>
+                        <span className="location-text">{userLocation}</span>
                       </div>
                     )}
-                    <span className="network-type">{networkInfo.displayType}</span>
+                    
+                    {/* Network strength indicator */}
+                    <div className={`network-indicator strength-${networkInfo.strength} ${networkInfo.isWifi ? 'wifi' : 'cellular'}`}>
+                      {networkInfo.isWifi ? (
+                        /* WiFi icon */
+                        <svg className="wifi-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                          <path d="M12 18c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm-4.9-2.3l1.4 1.4C9.5 16.5 10.7 16 12 16s2.5.5 3.5 1.1l1.4-1.4C15.6 14.6 13.9 14 12 14s-3.6.6-4.9 1.7zm-2.8-2.8l1.4 1.4C7.3 13.2 9.5 12 12 12s4.7 1.2 6.3 2.3l1.4-1.4C17.7 11.2 15 10 12 10s-5.7 1.2-7.7 2.9zM1.5 10l1.4 1.4C5.1 9.2 8.4 8 12 8s6.9 1.2 9.1 3.4L22.5 10C19.8 7.4 16.1 6 12 6S4.2 7.4 1.5 10z"/>
+                        </svg>
+                      ) : (
+                        /* Cellular signal bars */
+                        <div className="signal-bars">
+                          {[1, 2, 3, 4].map((bar) => (
+                            <div
+                              key={bar}
+                              className={`signal-bar ${bar <= networkInfo.strength ? 'active' : ''}`}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      <span className="network-type">{networkInfo.displayType}</span>
+                    </div>
                   </div>
                   
                   {/* ID Card overlay for document step */}
