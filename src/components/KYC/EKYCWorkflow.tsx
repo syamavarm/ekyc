@@ -13,6 +13,7 @@ import CompletionScreen from './CompletionScreen';
 import { initializeAudio, playVoice, isAudioReady } from '../../services/audioService';
 import sessionRecordingService, { SessionRecordingService } from '../../services/sessionRecordingService';
 import { uiEventLoggerService } from '../../services/uiEventLoggerService';
+import avatarImage from '../../images/avatar.jpeg';
 import './EKYCWorkflow.css';
 
 export type WorkflowStep =
@@ -879,10 +880,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
               {(isVideoStep && localStream) && (
                 <div className="agent-overlay">
                   <div className="agent-avatar">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                      <circle cx="12" cy="7" r="4"/>
-                    </svg>
+                    <img src={avatarImage} alt="Agent" className="agent-avatar-image" />
                   </div>
                 </div>
               )}

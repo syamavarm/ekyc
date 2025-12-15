@@ -430,6 +430,13 @@
   opacity: 0.8;
 }
 
+.ekyc-light .agent-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit:  cover;
+  object-position: center top;
+}
+
 /* ============================================
    INSTRUCTION OVERLAY
    ============================================ */

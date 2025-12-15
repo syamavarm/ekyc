@@ -14,14 +14,26 @@ import {
   VerificationResults,
 } from '../types/kyc.types';
 import { v4 as uuidv4 } from 'uuid';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export class KYCSessionManager {
   private sessions: Map<string, KYCSession>;
   private sessionExpiryMs: number;
+  private recordingsDir: string;
+  private videosDir: string;
+  private uploadsDir: string;
+  private reportsDir: string;
 
   constructor(sessionExpiryMs: number = 30 * 60 * 1000) { // Default: 30 minutes
     this.sessions = new Map();
     this.sessionExpiryMs = sessionExpiryMs;
+    
+    // Initialize directory paths
+    this.recordingsDir = path.join(__dirname, '../../recordings');
+    this.videosDir = path.join(__dirname, '../../videos');
+    this.uploadsDir = path.join(__dirname, '../../uploads');
+    this.reportsDir = path.join(__dirname, '../../reports');
     
     // Start cleanup interval
     this.startCleanupInterval();
@@ -368,11 +380,91 @@ export class KYCSessionManager {
    * Delete session
    */
   deleteSession(sessionId: string): boolean {
+    // Clean up associated files before deleting session
+    this.cleanupSessionFiles(sessionId);
+    
     const deleted = this.sessions.delete(sessionId);
     if (deleted) {
       console.log(`[KYCSessionManager] Session deleted: ${sessionId}`);
     }
     return deleted;
+  }
+
+  /**
+   * Clean up all files associated with a session
+   * Removes recordings, merged videos, documents, and reports/formdata
+   */
+  private cleanupSessionFiles(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    let filesDeleted = 0;
+
+    try {
+      // 1. Delete recordings directory (chunks, metadata, events, decisions)
+      const recordingsSessionDir = path.join(this.recordingsDir, sessionId);
+      if (fs.existsSync(recordingsSessionDir)) {
+        fs.rmSync(recordingsSessionDir, { recursive: true, force: true });
+        console.log(`[KYCSessionManager] Deleted recordings directory: ${recordingsSessionDir}`);
+        filesDeleted++;
+      }
+
+      // 2. Delete merged video file
+      const mergedVideoPath = path.join(this.videosDir, `${sessionId}.mp4`);
+      if (fs.existsSync(mergedVideoPath)) {
+        fs.unlinkSync(mergedVideoPath);
+        console.log(`[KYCSessionManager] Deleted merged video: ${mergedVideoPath}`);
+        filesDeleted++;
+      }
+
+      // 3. Delete documents from uploads directory
+      // Files are named: {documentId}-front.jpg, {documentId}-back.jpg, {documentId}-face.jpg, 
+      // {documentId}-photo.jpg, {documentId}-ocr-results.json, or just {documentId}.{ext}
+      if (session?.document?.documentId && fs.existsSync(this.uploadsDir)) {
+        const documentId = session.document.documentId;
+        const files = fs.readdirSync(this.uploadsDir);
+        
+        for (const file of files) {
+          // Match files that start with documentId (with optional suffix like -front, -back, etc.)
+          if (file.startsWith(documentId)) {
+            const filePath = path.join(this.uploadsDir, file);
+            try {
+              fs.unlinkSync(filePath);
+              console.log(`[KYCSessionManager] Deleted document file: ${filePath}`);
+              filesDeleted++;
+            } catch (error) {
+              console.error(`[KYCSessionManager] Failed to delete document file ${filePath}:`, error);
+            }
+          }
+        }
+      }
+
+      // 4. Delete reports and formdata files
+      // Reports: kyc_report_{sessionId}_{timestamp}.txt (or .pdf)
+      // Formdata: formdata_{sessionId}.json
+      if (fs.existsSync(this.reportsDir)) {
+        const files = fs.readdirSync(this.reportsDir);
+        
+        for (const file of files) {
+          // Match report files (kyc_report_{sessionId}_*.txt or .pdf)
+          // Match formdata files (formdata_{sessionId}.json)
+          if (file.includes(sessionId)) {
+            const filePath = path.join(this.reportsDir, file);
+            try {
+              fs.unlinkSync(filePath);
+              console.log(`[KYCSessionManager] Deleted report/formdata file: ${filePath}`);
+              filesDeleted++;
+            } catch (error) {
+              console.error(`[KYCSessionManager] Failed to delete report file ${filePath}:`, error);
+            }
+          }
+        }
+      }
+
+      if (filesDeleted > 0) {
+        console.log(`[KYCSessionManager] Cleaned up ${filesDeleted} file(s) for session ${sessionId}`);
+      }
+    } catch (error) {
+      console.error(`[KYCSessionManager] Error cleaning up files for session ${sessionId}:`, error);
+    }
   }
 
   /**
@@ -392,6 +484,8 @@ export class KYCSessionManager {
     
     for (const [sessionId, session] of this.sessions.entries()) {
       if (this.isSessionExpired(session)) {
+        // Clean up files before deleting session from memory
+        this.cleanupSessionFiles(sessionId);
         this.sessions.delete(sessionId);
         cleanedCount++;
       }
