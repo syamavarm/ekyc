@@ -113,7 +113,7 @@ export class FormService {
             'Other',
           ],
           category: 'financial',
-        },
+        }/*,
         {
           id: 'isPoliticallyExposed',
           field: 'Are you a Politically Exposed Person (PEP) or related to one?',
@@ -125,7 +125,7 @@ export class FormService {
           field: 'Do you have any existing accounts with our bank?',
           type: 'yes_no',
           category: 'knowledge',
-        },
+        },*/
       ],
       optional: [
         {
