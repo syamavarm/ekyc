@@ -736,7 +736,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
       'video_call': 'Camera',
       'document': 'Document',
       'face': 'Presence Verification',
-      'form': 'Data Collection',
+      'form': 'Form Filling',
       'completion': 'Complete',
     };
     return labels[step] || step.replace('_', ' ');

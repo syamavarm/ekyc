@@ -128,7 +128,7 @@ const CompletionScreen: React.FC<CompletionScreenProps> = ({
                 <span className="icon warning">!</span>
                 <span>Presence Verification - Requires Review</span>
               </div>
-              {renderCompletedStep(required?.form ?? false, 'Additional Data Collection')}
+              {renderCompletedStep(required?.form ?? false, 'Form Data Collection')}
             </div>
           </div>
 
@@ -166,7 +166,7 @@ const CompletionScreen: React.FC<CompletionScreenProps> = ({
             {renderCompletedStep(required?.locationCapture ?? false, 'Location Capture')}
             {renderCompletedStep(required?.documentOCR ?? false, 'Document Verification')}
             {renderCompletedStep(required?.secureVerification ?? false, 'Presence Verification')}
-            {renderCompletedStep(required?.form ?? false, 'Additional Data Collection')}
+            {renderCompletedStep(required?.form ?? false, 'Form Data Collection')}
           </div>
         </div>
 
