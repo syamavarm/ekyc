@@ -192,13 +192,36 @@ export class ReportGenerationService {
     if (session.location) {
       lines.push('LOCATION');
       lines.push('-'.repeat(80));
+      // Prioritize GPS when available
       if (session.location.gps) {
-        lines.push(`GPS: ${session.location.gps.latitude}, ${session.location.gps.longitude}`);
+        lines.push(`GPS Coordinates: ${session.location.gps.latitude}, ${session.location.gps.longitude}`);
         lines.push(`Accuracy: ${session.location.gps.accuracy} meters`);
-      }
-      if (session.location.ip) {
+        // Try to show readable location from addressComparison or IP reverse geocoding
+        if (session.location.addressComparison?.userCountry) {
+          const parts: string[] = [];
+          if (session.location.ip?.city) parts.push(session.location.ip.city);
+          if (session.location.ip?.region) parts.push(session.location.ip.region);
+          if (session.location.addressComparison.userCountry) parts.push(session.location.addressComparison.userCountry);
+          if (parts.length > 0) {
+            lines.push(`Location: ${parts.join(', ')}`);
+          }
+        } else if (session.location.ip?.city && session.location.ip?.country) {
+          const parts: string[] = [];
+          if (session.location.ip.city) parts.push(session.location.ip.city);
+          if (session.location.ip.region) parts.push(session.location.ip.region);
+          if (session.location.ip.country) parts.push(session.location.ip.country);
+          lines.push(`Location: ${parts.join(', ')}`);
+        }
+      } else if (session.location.ip) {
+        // Only show IP location prominently if GPS is not available
         lines.push(`IP Address: ${session.location.ip.address}`);
-        lines.push(`Location: ${session.location.ip.city || 'N/A'}, ${session.location.ip.region || 'N/A'}, ${session.location.ip.country || 'N/A'}`);
+        const parts: string[] = [];
+        if (session.location.ip.city) parts.push(session.location.ip.city);
+        if (session.location.ip.region) parts.push(session.location.ip.region);
+        if (session.location.ip.country) parts.push(session.location.ip.country);
+        if (parts.length > 0) {
+          lines.push(`Location: ${parts.join(', ')}`);
+        }
       }
       lines.push('');
     }
@@ -426,7 +449,12 @@ export class ReportGenerationService {
    */
   getReportPath(sessionId: string): string | null {
     const files = fs.readdirSync(this.reportsDir);
-    const reportFile = files.find(f => f.includes(sessionId));
+    // Look specifically for report files (kyc_report_*.txt or .pdf), not formdata JSON
+    const reportFile = files.find(f => 
+      f.startsWith('kyc_report_') && 
+      f.includes(sessionId) && 
+      (f.endsWith('.txt') || f.endsWith('.pdf'))
+    );
     
     if (reportFile) {
       return path.join(this.reportsDir, reportFile);

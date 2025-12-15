@@ -626,3 +626,7 @@ export interface LeanOCRResults {
   processedAt: Date;
 }
 
+// Export singleton instance for use across modules
+export const sessionManager = new KYCSessionManager();
+export default sessionManager;
+

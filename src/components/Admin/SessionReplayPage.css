@@ -1063,6 +1063,16 @@
   color: #1e293b;
 }
 
+.text-success {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.text-error {
+  color: #dc2626;
+  font-weight: 600;
+}
+
 .status-badge {
   padding: 0.125rem 0.5rem;
   border-radius: 4px;

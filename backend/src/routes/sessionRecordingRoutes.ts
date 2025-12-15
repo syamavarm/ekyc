@@ -412,6 +412,7 @@ router.get('/:sessionId/details', async (req: Request, res: Response) => {
             faceMatch: session.secureVerification.faceMatch,
             liveness: session.secureVerification.liveness,
             faceConsistency: session.secureVerification.faceConsistency,
+            otpVoiceVerification: session.secureVerification.otpVoiceVerification,
             verifiedAt: session.secureVerification.verifiedAt,
           } : null,
           form: session.form,

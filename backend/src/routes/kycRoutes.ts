@@ -7,7 +7,7 @@ import express, { Request, Response } from 'express';
 import multer from 'multer';
 import * as fs from 'fs';
 import * as path from 'path';
-import { KYCSessionManager } from '../services/kycSessionManager';
+import { sessionManager } from '../services/kycSessionManager';
 import { LocationService } from '../services/locationService';
 import { DocumentService } from '../services/documentService';
 import { FaceVerificationService } from '../services/faceVerificationService';
@@ -54,7 +54,6 @@ const upload = multer({
 });
 
 // Initialize services
-const sessionManager = new KYCSessionManager();
 const locationService = new LocationService();
 const documentService = new DocumentService({
   azureEndpoint: process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT,

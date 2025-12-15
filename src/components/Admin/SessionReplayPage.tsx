@@ -897,7 +897,46 @@ const SessionReplayPage: React.FC<SessionReplayPageProps> = ({ sessionId, onBack
           {/* Report Tab */}
           {activeTab === 'report' && (
             <div className="report-tab">
-              <h2>📋 Session Report</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h2>📋 Session Report</h2>
+                <button
+                  onClick={async () => {
+                    try {
+                      const response = await fetch(`${API_BASE_URL}/kyc/session/${sessionId}/summary?format=txt`);
+                      if (!response.ok) {
+                        throw new Error('Failed to download report');
+                      }
+                      const blob = await response.blob();
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `kyc_report_${sessionId}.txt`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      window.URL.revokeObjectURL(url);
+                    } catch (error) {
+                      console.error('Error downloading report:', error);
+                      alert('Failed to download report. Please try again.');
+                    }
+                  }}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  }}
+                >
+                  ⬇️ Download Report
+                </button>
+              </div>
               
               {sessionDetails?.sessionDetails ? (
                 <div className="report-content">
@@ -949,9 +988,9 @@ const SessionReplayPage: React.FC<SessionReplayPageProps> = ({ sessionId, onBack
                           </span>
                           <span className="verification-label">Document</span>
                         </div>
-                        <div className={`verification-item ${sessionDetails.sessionDetails.verificationResults.secureVerificationVerified ? 'pass' : 'fail'}`}>
+                        <div className={`verification-item ${sessionDetails.sessionDetails.verificationResults.secureVerified ? 'pass' : 'fail'}`}>
                           <span className="verification-icon">
-                            {sessionDetails.sessionDetails.verificationResults.secureVerificationVerified ? '✅' : '❌'}
+                            {sessionDetails.sessionDetails.verificationResults.secureVerified ? '✅' : '❌'}
                           </span>
                           <span className="verification-label">Face Match</span>
                         </div>
@@ -966,27 +1005,6 @@ const SessionReplayPage: React.FC<SessionReplayPageProps> = ({ sessionId, onBack
                             {sessionDetails.sessionDetails.verificationResults.overallVerified ? '✅' : '❌'}
                           </span>
                           <span className="verification-label">Overall</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Face Match Details */}
-                  {sessionDetails.sessionDetails.secureVerification && (
-                    <div className="report-section">
-                      <h3>🤳 Face Verification Details</h3>
-                      <div className="report-fields">
-                        <div className="report-field">
-                          <label>Face Match Score</label>
-                          <span>{((sessionDetails.sessionDetails.secureVerification.faceMatch?.matchScore || 0) * 100).toFixed(1)}%</span>
-                        </div>
-                        <div className="report-field">
-                          <label>Liveness Confidence</label>
-                          <span>{((sessionDetails.sessionDetails.secureVerification.liveness?.confidenceScore || 0) * 100).toFixed(1)}%</span>
-                        </div>
-                        <div className="report-field">
-                          <label>Face Consistency</label>
-                          <span>{((sessionDetails.sessionDetails.secureVerification.faceConsistency?.consistencyScore || 0) * 100).toFixed(1)}%</span>
                         </div>
                       </div>
                     </div>
@@ -1016,6 +1034,113 @@ const SessionReplayPage: React.FC<SessionReplayPageProps> = ({ sessionId, onBack
                               {sessionDetails.sessionDetails.location.ip.city}, 
                               {sessionDetails.sessionDetails.location.ip.country}
                             </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Face Match Details */}
+                  {sessionDetails.sessionDetails.secureVerification && (
+                    <div className="report-section">
+                      <h3>🤳 Face Verification Details</h3>
+                      <div className="report-fields">
+                        <div className="report-field">
+                          <label>Face Match Score</label>
+                          <span>{((sessionDetails.sessionDetails.secureVerification.faceMatch?.matchScore || 0) * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="report-field">
+                          <label>Face Match Result</label>
+                          <span className={sessionDetails.sessionDetails.secureVerification.faceMatch?.isMatch ? 'text-success' : 'text-error'}>
+                            {sessionDetails.sessionDetails.secureVerification.faceMatch?.isMatch ? 'MATCH' : 'NO MATCH'}
+                          </span>
+                        </div>
+                        <div className="report-field">
+                          <label>Liveness Overall Result</label>
+                          <span className={sessionDetails.sessionDetails.secureVerification.liveness?.overallResult ? 'text-success' : 'text-error'}>
+                            {sessionDetails.sessionDetails.secureVerification.liveness?.overallResult ? 'PASS' : 'FAIL'}
+                          </span>
+                        </div>
+                        <div className="report-field">
+                          <label>Liveness Confidence</label>
+                          <span>{((sessionDetails.sessionDetails.secureVerification.liveness?.confidenceScore || 0) * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="report-field">
+                          <label>Face Consistency</label>
+                          <span>{((sessionDetails.sessionDetails.secureVerification.faceConsistency?.consistencyScore || 0) * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="report-field">
+                          <label>Face Consistency Result</label>
+                          <span className={sessionDetails.sessionDetails.secureVerification.faceConsistency?.isConsistent ? 'text-success' : 'text-error'}>
+                            {sessionDetails.sessionDetails.secureVerification.faceConsistency?.isConsistent ? 'CONSISTENT' : 'INCONSISTENT'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Liveness Check Details */}
+                  {sessionDetails.sessionDetails.secureVerification?.liveness?.checks && 
+                   sessionDetails.sessionDetails.secureVerification.liveness.checks.length > 0 && (
+                    <div className="report-section">
+                      <h3>🔍 Liveness Check Details</h3>
+                      <div className="report-fields">
+                        {sessionDetails.sessionDetails.secureVerification.liveness.checks.map((check: any, index: number) => (
+                          <div key={index} className="report-field">
+                            <label>{check.type?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}</label>
+                            <span className={check.result ? 'text-success' : 'text-error'}>
+                              {check.result ? 'PASS' : 'FAIL'} ({(check.confidence * 100).toFixed(2)}%)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* OTP Voice Verification */}
+                  {sessionDetails.sessionDetails.secureVerification?.otpVoiceVerification && (
+                    <div className="report-section">
+                      <h3>📞 OTP Voice Verification</h3>
+                      <div className="report-fields">
+                        <div className="report-field">
+                          <label>Result</label>
+                          <span className={sessionDetails.sessionDetails.secureVerification.otpVoiceVerification.verified ? 'text-success' : 'text-error'}>
+                            {sessionDetails.sessionDetails.secureVerification.otpVoiceVerification.verified ? 'VERIFIED' : 'NOT VERIFIED'}
+                          </span>
+                        </div>
+                        <div className="report-field">
+                          <label>Attempts</label>
+                          <span>{sessionDetails.sessionDetails.secureVerification.otpVoiceVerification.attempts || 0}</span>
+                        </div>
+                        {sessionDetails.sessionDetails.secureVerification.otpVoiceVerification.verifiedAt && (
+                          <div className="report-field">
+                            <label>Verified At</label>
+                            <span>{new Date(sessionDetails.sessionDetails.secureVerification.otpVoiceVerification.verifiedAt).toLocaleString()}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Form Results */}
+                  {sessionDetails.sessionDetails.form && (
+                    <div className="report-section">
+                      <h3>📝 Form Results</h3>
+                      <div className="report-fields">
+                        <div className="report-field">
+                          <label>Score</label>
+                          <span>{sessionDetails.sessionDetails.form.score}/{sessionDetails.sessionDetails.form.fields?.length || 0}</span>
+                        </div>
+                        <div className="report-field">
+                          <label>Status</label>
+                          <span className={sessionDetails.sessionDetails.form.passed ? 'text-success' : 'text-error'}>
+                            {sessionDetails.sessionDetails.form.passed ? 'PASSED' : 'FAILED'}
+                          </span>
+                        </div>
+                        {sessionDetails.sessionDetails.form.completedAt && (
+                          <div className="report-field">
+                            <label>Completed At</label>
+                            <span>{new Date(sessionDetails.sessionDetails.form.completedAt).toLocaleString()}</span>
                           </div>
                         )}
                       </div>
