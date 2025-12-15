@@ -121,6 +121,8 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   // User's current location (reverse geocoded)
   const [userLocation, setUserLocation] = useState<string | null>(null);
   const [locationFetching, setLocationFetching] = useState(false);
+  // Store GPS coordinates for reuse in location comparison
+  const [gpsCoordinates, setGpsCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
   
   // Visual feedback state for face verification (countdown, action cues)
   const [visualFeedback, setVisualFeedback] = useState<VisualFeedbackState>({
@@ -192,6 +194,12 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
         const locationData = await kycApiService.getUserLocation();
         
         if (locationData.gps) {
+          // Store GPS coordinates for reuse in location comparison
+          setGpsCoordinates({
+            latitude: locationData.gps.latitude,
+            longitude: locationData.gps.longitude,
+          });
+          
           // Reverse geocode the coordinates
           const geocoded = await kycApiService.reverseGeocode(
             locationData.gps.latitude,
@@ -679,6 +687,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
             mainVideoRef={videoRef}
             locationEnabled={shouldVerifyLocation}
             locationRadiusKm={workflowSteps?.locationRadiusKm}
+            gpsCoordinates={gpsCoordinates}
           />
         );
 

@@ -27,6 +27,8 @@ interface DocumentVerificationProps {
   // Location verification config - if enabled, location is verified after OCR
   locationEnabled?: boolean;
   locationRadiusKm?: number;
+  // GPS coordinates from parent (already obtained earlier in workflow)
+  gpsCoordinates?: { latitude: number; longitude: number } | null;
 }
 
 // ID card standard aspect ratio (85.6mm x 53.98mm ≈ 1.586:1)
@@ -51,6 +53,7 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
   mainVideoRef,
   locationEnabled = false,
   locationRadiusKm,
+  gpsCoordinates,
 }) => {
   const [step, setStep] = useState<CaptureStep>('capture-front');
   const [documentType] = useState<string>('auto');
@@ -328,18 +331,26 @@ const DocumentVerification: React.FC<DocumentVerificationProps> = ({
           });
           
           try {
-            // Get user's GPS location (or undefined to use IP-based)
+            // Use GPS coordinates from parent (already obtained earlier) or try to get them again
             let gpsLatitude: number | undefined;
             let gpsLongitude: number | undefined;
             
-            try {
-              const gpsResult = await kycApiService.getUserLocation();
-              if (gpsResult.gps) {
-                gpsLatitude = gpsResult.gps.latitude;
-                gpsLongitude = gpsResult.gps.longitude;
+            if (gpsCoordinates) {
+              // Use coordinates already obtained in parent component
+              gpsLatitude = gpsCoordinates.latitude;
+              gpsLongitude = gpsCoordinates.longitude;
+              console.log('[DocumentVerification] Using GPS coordinates from parent:', gpsLatitude, gpsLongitude);
+            } else {
+              // Fallback: try to get GPS location if not provided by parent
+              try {
+                const gpsResult = await kycApiService.getUserLocation();
+                if (gpsResult.gps) {
+                  gpsLatitude = gpsResult.gps.latitude;
+                  gpsLongitude = gpsResult.gps.longitude;
+                }
+              } catch (gpsErr) {
+                console.warn('GPS location error, will use IP-based:', gpsErr);
               }
-            } catch (gpsErr) {
-              console.warn('GPS location error, will use IP-based:', gpsErr);
             }
             
             // Compare location with document address
