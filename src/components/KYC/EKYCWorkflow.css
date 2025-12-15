@@ -78,19 +78,6 @@
   letter-spacing: 0.5px;
 }
 
-.ekyc-light .live-dot {
-  width: 6px;
-  height: 6px;
-  background: #22C55E;
-  border-radius: 50%;
-  animation: pulse-live 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse-live {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
 .ekyc-light .recording-badge {
   display: flex;
   align-items: center;

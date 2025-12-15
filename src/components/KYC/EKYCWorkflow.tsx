@@ -800,18 +800,14 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
                     muted
                     className={`main-video-preview ${isDocumentStep ? 'no-mirror' : ''} ${state.currentStep === 'face' && visualFeedback.mode === 'action' ? 'action-pulse' : ''}`}
                   />
-                  <div className="video-overlay-badges">
-                    <div className="video-overlay-badge">
-                      <span className="live-dot"></span>
-                      LIVE
-                    </div>
-                    {isRecordingActive && (
+                  {isRecordingActive && (
+                    <div className="video-overlay-badges">
                       <div className="recording-badge">
                         <span className="recording-dot"></span>
                         REC
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                   
                   {/* Visual Countdown Overlay (3-2-1) for Face Verification only */}
                   {state.currentStep === 'face' && visualFeedback.mode === 'countdown' && visualFeedback.countdownNumber !== null && (
