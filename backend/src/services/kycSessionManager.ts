@@ -25,7 +25,7 @@ export class KYCSessionManager {
   private uploadsDir: string;
   private reportsDir: string;
 
-  constructor(sessionExpiryMs: number = 30 * 60 * 1000) { // Default: 30 minutes
+  constructor(sessionExpiryMs: number = 1 * 24 * 60 * 60 * 1000) { // Default: 1 day
     this.sessions = new Map();
     this.sessionExpiryMs = sessionExpiryMs;
     
