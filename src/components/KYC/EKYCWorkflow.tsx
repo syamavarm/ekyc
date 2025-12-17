@@ -121,6 +121,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   // User's current location (reverse geocoded)
   const [userLocation, setUserLocation] = useState<string | null>(null);
   const [locationFetching, setLocationFetching] = useState(false);
+  const [locationFailed, setLocationFailed] = useState(false);
   // Store GPS coordinates for reuse in location comparison
   const [gpsCoordinates, setGpsCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
   
@@ -183,7 +184,7 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
   useEffect(() => {
     const fetchUserLocation = async () => {
       // Only fetch once, after consent is completed and we're past the consent step
-      if (state.currentStep === 'consent' || userLocation || locationFetching) {
+      if (state.currentStep === 'consent' || userLocation || locationFetching || locationFailed) {
         return;
       }
       
@@ -212,13 +213,14 @@ const EKYCWorkflow: React.FC<EKYCWorkflowProps> = ({
         }
       } catch (error) {
         console.warn('[EKYCWorkflow] Could not fetch user location:', error);
+        setLocationFailed(true);
       } finally {
         setLocationFetching(false);
       }
     };
     
     fetchUserLocation();
-  }, [state.currentStep, userLocation, locationFetching]);
+  }, [state.currentStep, userLocation, locationFetching, locationFailed]);
 
   // Calculate enabled steps based on workflow configuration
   // Location capture now comes AFTER document verification to enable address comparison
